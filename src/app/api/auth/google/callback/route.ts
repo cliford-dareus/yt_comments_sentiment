@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { user } from "@/lib/db/schema";
+import { $user } from "@/lib/db/schema";
 import { lucia } from "@/lib/lucia";
 import { googleAuthClient } from "@/lib/oauth";
 import { eq } from "drizzle-orm";
@@ -45,18 +45,18 @@ export async function GET(req: NextRequest, res: Response) {
   
   let userId = '';
   
-  const existingUser = await db.select().from(user).where(eq(user.email, googleData.email));
+  const existingUser = await db.select().from($user).where(eq($user.email, googleData.email));
   
   if(existingUser){
     userId = existingUser[0]?.id;
   }else {
-    const newUser = await db.insert(user).values({
+    const newUser = await db.insert($user).values({
       // ADD UUID
       id: '',
       email: googleData.email,
       fullName: googleData.name,
       picture: googleData.picture
-    }).returning({ id: user.id });
+    }).returning({ id: $user.id });
     
     userId = newUser[0].id
   }
