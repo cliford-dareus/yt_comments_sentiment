@@ -7,7 +7,7 @@ export const $user = pgTable('user', {
   picture: text('picture').default(''),
 });
 
-export const session = pgTable("session", {
+export const $session = pgTable("session", {
 	id: text("id").primaryKey(),
 	userId: text("user_id")
 		.notNull()
@@ -19,3 +19,4 @@ export const session = pgTable("session", {
 });
 
 export type UserType = typeof $user.$inferInsert;
+export type SessionType = typeof $session.$inferInsert;

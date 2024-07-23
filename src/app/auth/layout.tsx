@@ -4,7 +4,7 @@ interface AuthLayoutProps {
 
 export default async function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <div className="relative flex h-[calc(100vh_-_theme(spacing.16))] overflow-hidden">
+    <div className="relative flex h-screen overflow-hidden bg-black">
       {children}
     </div>
   )
