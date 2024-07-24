@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { $user } from "@/lib/db/schema";
 import { lucia } from "@/lib/lucia";
-import { googleAuthClient } from "@/lib/oauth";
+import { googleOauthClient } from "@/lib/oauth";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, res: Response) {
     return new Response('Invalid Request', { status: 400 })
   }
   
-  const { accessToken } = await googleAuthClient.validateAuthorizationCode(code, codeVerifier);
+  const { accessToken } = await googleOauthClient.validateAuthorizationCode(code, codeVerifier);
   const googleResponse = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
     headers : {
       Authorization: `Bearer ${accessToken}`
@@ -47,12 +47,12 @@ export async function GET(req: NextRequest, res: Response) {
   
   const existingUser = await db.select().from($user).where(eq($user.email, googleData.email));
   
-  if(existingUser){
+  if(existingUser.length === 1){
     userId = existingUser[0]?.id;
   }else {
     const newUser = await db.insert($user).values({
       // ADD UUID
-      id: '',
+      id: await crypto.randomUUID(),
       email: googleData.email,
       fullName: googleData.name,
       picture: googleData.picture
@@ -65,5 +65,5 @@ export async function GET(req: NextRequest, res: Response) {
   const sessionCookies = await lucia.createSessionCookie(session.id)
   cookies().set(sessionCookies.name, sessionCookies.value, sessionCookies.attributes);
   
-  return redirect('/')
+  return redirect('/dashboard')
 }

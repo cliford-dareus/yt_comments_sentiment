@@ -44,10 +44,11 @@ export const getUser = async () => {
   
   
   const userData = await db.select({
+    id: $user.id,
     picture: $user.picture,
-    full_name: $user.fullName,
+    fullName: $user.fullName,
     email: $user.email
-  }).from($user).where(eq($user.id, user.id))
-  
+  }).from($user).where(eq($user.id, user.id));
+    
   return userData[0]
 };

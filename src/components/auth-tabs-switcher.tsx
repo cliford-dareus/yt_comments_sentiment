@@ -1,16 +1,21 @@
+import { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
-type AuthTabProps = {}
+type AuthTabProps = {
+  signIn: ReactNode;
+  signUp: ReactNode;
+}
 
-const AuthTabSwitcher = ({}: AuthTabProps) => {
+const AuthTabSwitcher = ({signIn, signUp}: AuthTabProps) => {
   return (
-    <Tabs className="">
-      <TabsList>
-        <TabsTrigger value="Sign-In">Sign In</TabsTrigger>
-        <TabsTrigger value="Sign-Up">Sign Up</TabsTrigger>
+    <Tabs className="w-full" defaultValue="sign-In">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="sign-In">Sign In</TabsTrigger>
+        <TabsTrigger value="sign-Up">Sign Up</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="sign-In">Sign In</TabsContent>
+      <TabsContent value="sign-In">{signIn}</TabsContent>
+      <TabsContent value="sign-Up">{signUp}</TabsContent>
     </Tabs>
   )
 };
