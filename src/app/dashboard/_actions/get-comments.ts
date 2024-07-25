@@ -1,9 +1,10 @@
 "use server"
 
-const getComments = async () => {
+const getComments = async (videoId: {videoId: string}) => {
   try {
     const data = await fetch('http://localhost:3000/api/youtube-comments', {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify(videoId)
     })
     const response = await data.json()
     return response
