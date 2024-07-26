@@ -10,7 +10,7 @@ type Props = {
 const Navigation = ({user}: Props) => {
   console.log(user)
   return (
-    <div className="pl-[100px] py-4 border flex">
+    <div className="pl-[76px] py-4 border flex">
       <div className="flex gap-4 items-center">
         <div className="mr-8">
           <Link className="text-black w-[245px] font-bold" href='/'>Comment.ai</Link>

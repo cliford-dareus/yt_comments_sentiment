@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { createObjectCsvWriter } from 'csv-writer';
+import { generateCSV } from "@/lib/utils";
 
 export  async function POST (req: Request) {
   const { videoId } = await req.json();
@@ -32,8 +34,21 @@ export  async function POST (req: Request) {
         comments.push(...response.data.items!);
         pageToken = response?.data.nextPageToken!;
       } while (pageToken);
+      
+      // generate csv from content
+      const records = comments.map((comment) => {
+        return comment.snippet?.topLevelComment?.snippet?.textDisplay
+      }) as string[];
+      
+      const csvContent = await generateCSV(records);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      
+      // Save the file to a bucket 
+      
+      // Turn the file into embedding vector 
      
-      return NextResponse.json({comments}, {status: 200})
+      // 
+      return NextResponse.json({blob}, {status: 200})
     } catch (error) {
       console.error('Error fetching comments:', error);
       return NextResponse.json(
@@ -42,4 +57,4 @@ export  async function POST (req: Request) {
           );
     }  
   return NextResponse.json({message: 'RECEIVED'})
-}
+};

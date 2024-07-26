@@ -29,8 +29,8 @@ const YtUploadForm = () => {
       console.log('Error', error)
     }
   };
-  
-  if(loading){
+
+  if (loading) {
     return <div>LOADING...</div>
   }
 
