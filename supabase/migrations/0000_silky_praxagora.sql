@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "session" (
 	"id" text PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
+	"user_id" text,
 	"expires_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint

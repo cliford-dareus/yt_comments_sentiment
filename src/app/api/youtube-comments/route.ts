@@ -2,10 +2,28 @@ import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { createObjectCsvWriter } from 'csv-writer';
 import { generateCSV } from "@/lib/utils";
+import { uploadToSupabase } from "@/lib/supabase-bucket";
+import { lucia } from "@/lib/lucia";
+import { db } from "@/lib/db";
+import { $user } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 export  async function POST (req: Request) {
-  const { videoId } = await req.json();
-  console.log('VIDEOID: ', videoId)
+  const { videoId , sessionId } = await req.json();
+  
+  if(!sessionId){
+    return null
+  };
+  
+  const { session, user } = await lucia.validateSession(sessionId);
+  
+  if (!user){
+    return null
+  }
+
+  const userId = await db.select({
+    id: $user.id,
+  }).from($user).where(eq($user.id, user.id));
   
   if (!videoId) {
       return NextResponse.json(
@@ -44,10 +62,12 @@ export  async function POST (req: Request) {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       
       // Save the file to a bucket 
-      
+      const fileId = await uploadToSupabase(comments[0].snippet?.videoId!, blob, userId[0].id);
+      console.log(fileId)
       // Turn the file into embedding vector 
      
-      // 
+      // Save a record in db
+      
       return NextResponse.json({blob}, {status: 200})
     } catch (error) {
       console.error('Error fetching comments:', error);

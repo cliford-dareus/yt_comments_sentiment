@@ -1,6 +1,6 @@
 {
-  "id": "ce73cb0a-0b49-4ce0-83d0-7822682ac105",
-  "prevId": "13b02401-da49-414b-8014-b73aadb534d2",
+  "id": "db3b0045-594c-4686-af5d-e8030b739c57",
+  "prevId": "396ae188-ea12-4f3d-baf3-c5e929a3bc68",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -18,7 +18,7 @@
           "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "expires_at": {
           "name": "expires_at",

@@ -13,12 +13,12 @@ const Navigation = ({user}: Props) => {
     <div className="pl-[76px] py-4 border flex">
       <div className="flex gap-4 items-center">
         <div className="mr-8">
-          <Link className="text-black w-[245px] font-bold" href='/'>Comment.ai</Link>
+          <Link className="text-xl text-black w-[245px] font-bold" href='/'>Comment.ai</Link>
         </div>
 
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-4 items-center border-x px-4">
           <div>{ user?.fullName }</div>
-          <div className="border px-4 rounded-full">Free</div>
+          <div className="border px-4 rounded-full bg-black text-white font-medium">Free</div>
         </div>
 
         <div>Documentation</div>

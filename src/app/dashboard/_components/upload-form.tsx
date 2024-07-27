@@ -35,26 +35,22 @@ const YtUploadForm = () => {
   }
 
   return (
-    <div className="">
+    <div className="w-full">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(postComments)}>
+        <form onSubmit={form.handleSubmit(postComments)} className='flex items-center gap-4'>
           <FormField
             control={form.control}
             name='videoId'
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Username</FormLabel>
+              <FormItem className='w-full'>
                 <FormControl>
-                  <Input placeholder="videoId"  {...field} />
+                  <Input className='flex-1' placeholder="Enter a youtue video url..."  {...field} />
                 </FormControl>
-                <FormDescription>
-                  This is your public display name.
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button>Fetch</Button>
+          <Button className='px-8'>Get sentiment</Button>
         </form>
       </Form>
     </div>
