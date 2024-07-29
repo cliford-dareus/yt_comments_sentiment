@@ -15,6 +15,13 @@
       "when": 1722048201842,
       "tag": "0001_dazzling_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1722104046249,
+      "tag": "0002_noisy_miss_america",
+      "breakpoints": true
     }
   ]
 }

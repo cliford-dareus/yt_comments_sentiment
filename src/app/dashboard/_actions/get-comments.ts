@@ -1,22 +1,30 @@
 "use server"
 
-import { lucia } from "@/lib/lucia";
+import { getUser, lucia } from "@/lib/lucia";
 import { cookies } from "next/headers";
 
 
-const getComments = async (videoId: { videoId: string }) => {
-  const sessionId = cookies().get(lucia.sessionCookieName)?.value || null
+const uploadYtToSupabase= async (videoId: { videoId: string }) => {
+  const user = await getUser();
+
+  if (!user) {
+    return null
+  };
+
+  const userId = user.id
 
   try {
     const data = await fetch('http://localhost:3000/api/youtube-comments', {
       method: 'POST',
-      body: JSON.stringify({ videoId , sessionId})
+      body: JSON.stringify({ videoId, userId }),
+      credentials: "include",
     })
-    const response = await data.json()
-    return response
+    const response = await data.json();
+
+    return response;
   } catch (error) {
     console.log("Something went wrong")
   }
 };
 
-export default getComments;
+export default uploadYtToSupabase;

@@ -18,5 +18,15 @@ export const $session = pgTable("session", {
   }).notNull()
 });
 
+export const $chats = pgTable("chats", {
+  id: text("id").primaryKey(),
+  fileId: text("file_id"),
+  fileName: text("file_name"),
+  userId: text("user_id")
+    .notNull()
+    .references(() => $user.id)
+});
+
 export type UserType = typeof $user.$inferInsert;
 export type SessionType = typeof $session.$inferInsert;
+export type ChatType = typeof $chats.$inferInsert;

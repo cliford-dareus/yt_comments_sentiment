@@ -33,7 +33,7 @@ const SidebarItems = ({ text, path, icon }: Props) => {
       >
         {icon}
         <span
-          className={`overflow-hidden transition-all ${expanded ? "w-52 ml-3" : "w-0"
+          className={`overflow-hidden transition-all text-black ${expanded ? "w-52 ml-3" : "w-0"
             }`}
         >
           {text}

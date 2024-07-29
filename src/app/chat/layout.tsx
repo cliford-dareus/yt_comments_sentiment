@@ -24,8 +24,8 @@ export default async function DashboardLayout({
   }
 
   return (
-    <main className="relative flex h-screen overflow-hidden">
-      {/* <div className="w-[60px]" /> */}
+    <main className="relative">
+      <div className="w-[60px]" />
       <Sidebar>
         {sidebarItems.map((item) => (
           <SidebarItems
@@ -37,10 +37,10 @@ export default async function DashboardLayout({
         ))}
       </Sidebar>
 
-      <div className="w-full">
+      <div className="w-full h-screen">
         <Navigation user={user} />
         <div className="flex">
-          <div className="w-[207px] min-w-[60px] "></div>
+          <div className="w-[60px] min-w-[60px]"></div>
           <div className="flex-1">{children}</div>
         </div>
       </div>

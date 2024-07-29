@@ -14,11 +14,43 @@ export const lucia = new Lucia(adapter, {
     attributes: {
       secure: process.env.NODE_ENV === "production"
     }
-  }
+  },
+  
+  getUserAttributes: (attributes) => ({
+    fullName: attributes?.fullName,
+    email: attributes?.email,
+    picture: attributes.picture
+  }),
 });
 
-export const getUser = async () => { 
-  const sessionId = cookies().get(lucia.sessionCookieName)?.value || null;
+// export const lucia = new Lucia({
+//   adapter: prisma({ /* your prisma config */ }),
+//   middleware: nextjs(),
+//   sessionCookie: {
+//     expires: false,
+//     attributes: {
+//       secure: process.env.NODE_ENV === 'production',
+//     },
+//   },
+//   getUserAttributes: (attributes) => ({
+//     username: attributes.username,
+//     email: attributes.email,
+//   }),
+// });
+
+declare module 'lucia' {
+  interface Register {
+    Lucia: typeof lucia;
+    DatabaseUserAttributes: {
+      fullName: string;
+      email: string;
+      picture: string
+    };
+  }
+}
+
+export const getUser = async (sessions?: string) => {
+  const sessionId = cookies().get(lucia.sessionCookieName)?.value || null || sessions;
   
   if(!sessionId){
     return null

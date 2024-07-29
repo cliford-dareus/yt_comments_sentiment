@@ -8,7 +8,6 @@ type Props = {
 }
 
 const Navigation = ({user}: Props) => {
-  console.log(user)
   return (
     <div className="pl-[76px] py-4 border flex">
       <div className="flex gap-4 items-center">

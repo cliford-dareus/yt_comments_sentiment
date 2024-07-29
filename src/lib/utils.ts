@@ -12,3 +12,9 @@ export const generateCSV = async (data: string[]) => {
   const csvContent = header + data.join('\n');
   return csvContent;
 };
+
+export function convertToAscii(inputString: string) {
+  // remove non ascii characters
+  const asciiString = inputString.replace(/[^\x00-\x7F]+/g, "");
+  return asciiString;
+}
