@@ -38,7 +38,7 @@ const ChatItemsWrapper = ({ chats, pageCount }: ChatsProps) => {
   );
 
   return (
-    <div className="">
+    <div className="p-4">
       <div className="grid grid-cols-4 gap-4 mt-4">
         {chats.map((chat) => (
           <div key={chat.id}>{chat.fileName}

@@ -16,14 +16,29 @@ const Chats = async ({ searchParams }: Props) => {
   const limit = typeof per_page === "string" ? parseInt(per_page) : 8;
   const offset = typeof page === "string" ? (parseInt(page) - 1) * limit : 0;
 
-  const [ chats , len ] = await getAllChats({offset, limit, sort, userId: user?.id as string});
+  const [chats, len] = await getAllChats({
+    offset,
+    limit,
+    sort,
+    userId: user?.id as string,
+  });
 
   const pageCount = Math.ceil((len as number) / limit);
 
   return (
-    <div className="pt-16 flex-1 p-4 md:max-w-6xl md:mx-auto">
-      <div className=""></div>
-          <ChatItemsWrapper chats={ chats as {id: string, fileId: string, fileName: string, userId: string}[]} pageCount={pageCount} />
+    <div className="flex h-[calc(100vh-70px)]">
+      <div className="min-w-[200px] w-[200px] border-r"></div>
+      <ChatItemsWrapper
+        chats={
+          chats as {
+            id: string;
+            fileId: string;
+            fileName: string;
+            userId: string;
+          }[]
+        }
+        pageCount={pageCount}
+      />
     </div>
   );
 };

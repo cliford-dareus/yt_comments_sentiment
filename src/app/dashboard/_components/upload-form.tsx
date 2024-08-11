@@ -16,7 +16,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useRouter } from "next/navigation";
-import { drive } from "googleapis/build/src/apis/drive";
 import loadSupabaseToPinecone from "@/lib/pinecone";
 
 const UploadSchema = z.object({
@@ -37,12 +36,10 @@ const YtUploadForm = () => {
       if(!comments.file_key || !comments.file_name){
         return;
       }
+      
       // Load file to pinecone
       const vertor = await loadSupabaseToPinecone(comments.file_name);
-      // if(!vector){
-      // 
-      //  return
-      // }
+    
       router.push(`chat/${comments.chatId}`);
       setloading(false);
     } catch (error) {

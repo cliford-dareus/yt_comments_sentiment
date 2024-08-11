@@ -8,9 +8,7 @@ import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
 import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
 import { convertToAscii } from "./utils";
-import getEmbedding from "./embedding";
-
-const BATCH_SIZE = 100;
+import { getEmbeddingBatch } from "./embedding";
 
 const loadSupabaseToPinecone = async (file_name: string) => {
   const supabase = createClient(
@@ -44,45 +42,40 @@ const loadSupabaseToPinecone = async (file_name: string) => {
 
   const splitDocs = await textSplitter.splitDocuments(docs);
   console.log(splitDocs);
+  try {
+    // Embed the chunks
+    const vector = await Promise.all(
+      splitDocs.map(async (doc, index) => {
+        const embeddings = await getEmbeddingBatch(splitDocs, index);
 
-  // Embed the chunks
-  const embeddings = new GoogleGenerativeAIEmbeddings({
-    model: "embedding-001", // 768 dimensions
-    // taskType: TaskType.RETRIEVAL_DOCUMENT,
-    // title: "Document title",
-  });
+        return {
+          id: `${file_name}_${crypto.randomUUID()}`,
+          values: embeddings[0],
+          metadata: {
+            ...doc.metadata,
+            text: doc.pageContent,
+            loc: JSON.stringify(doc.metadata.loc),
+          },
+        } as PineconeRecord;
+      }),
+    );
 
-  const vector = await Promise.all(
-    splitDocs.map(async (doc, index) => {
-      const embeddings = await getEmbedding(splitDocs, index);
+    // Create a pinecone client
+    const pinecone = await getPinconeClient();
 
-      return {
-        id: `${file_name}_${crypto.randomUUID()}`,
-        values: embeddings[0],
-        metadata: {
-          ...doc.metadata,
-          text: doc.pageContent,
-          loc: JSON.stringify(doc.metadata.loc),
-        },
-      } as PineconeRecord;
-    }),
-  );
-
-  // Create a pinecone client
-  const pinecone = await getPinconeClient();
-
-  console.log(pinecone);
-
-  // Initialize Pinecone index
-  const index = await pinecone.index(process.env.PINECONE_INDEX_NAME!);
-  const namespace = index.namespace(convertToAscii(file_name));
-  // upsert the vector in pinecone
-  await namespace.upsert(vector);
+    // Initialize Pinecone index
+    const index = await pinecone.index(process.env.PINECONE_INDEX_NAME!);
+    const namespace = index.namespace(convertToAscii(file_name));
+    // upsert the vector in pinecone
+    await namespace.upsert(vector);
+    return { status: "success" };
+  } catch (error) {
+    return null;
+  }
 };
 
 const getPinconeClient = () => {
   return new Pinecone({
-    // environment: process.env.PINECONE_ENVIRONMENT!,
     apiKey: process.env.PINECONE_API_KEY!,
   });
 };

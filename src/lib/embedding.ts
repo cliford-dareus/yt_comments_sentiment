@@ -1,15 +1,17 @@
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { Document } from "langchain/document";
+import { TaskType } from "@google/generative-ai";
+
 
 const BATCH_SIZE = 100;
 
 const embeddings = new GoogleGenerativeAIEmbeddings({
   model: "embedding-001", // 768 dimensions
-  // taskType: TaskType.RETRIEVAL_DOCUMENT,
+  taskType: TaskType.RETRIEVAL_DOCUMENT,
   // title: "Document title",
 });
 
-const getEmbedding = async (
+export const getEmbeddingBatch = async (
   splitDocs: Document<Record<string, any>>[],
   index: number,
 ) => {
@@ -20,4 +22,10 @@ const getEmbedding = async (
   return emb;
 };
 
-export default getEmbedding;
+export const getEmbedding = async (text: string) => {
+  try {
+    const query = text.replace(/\n/g, ' ');
+    const embedding = await embeddings.embedQuery(query);
+    return embedding;
+  } catch (error) { };
+};

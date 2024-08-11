@@ -1,9 +1,7 @@
-import Link from "next/link";
-
 import { getUser } from "@/lib/lucia";
-import Sidebar from "../_components/sidebar";
-import SidebarItems from "../_components/sidebar-item";
-import Navigation from "../_components/navigation";
+import Sidebar from "@/components/sidebar";
+import SidebarItems from "@/components/sidebar-item";
+import Navigation from "@/components/ds-navigation";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;

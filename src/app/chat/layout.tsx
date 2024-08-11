@@ -1,9 +1,7 @@
-import Link from "next/link";
-
 import { getUser } from "@/lib/lucia";
-import Sidebar from "../_components/sidebar";
-import SidebarItems from "../_components/sidebar-item";
-import Navigation from "../_components/navigation";
+import Sidebar from "@/components/sidebar";
+import SidebarItems from "@/components/sidebar-item";
+import Navigation from "@/components/ds-navigation";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -40,7 +38,7 @@ export default async function DashboardLayout({
       <div className="w-full h-screen">
         <Navigation user={user} />
         <div className="flex">
-          <div className="w-[60px] min-w-[60px]"></div>
+          <div className="w-[60px] min-w-[60px] text-black">Helllo</div>
           <div className="flex-1">{children}</div>
         </div>
       </div>
