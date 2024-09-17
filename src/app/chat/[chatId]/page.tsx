@@ -4,6 +4,8 @@ import { getUser } from "@/lib/lucia";
 import loadSupabaseToPinecone from "@/lib/pinecone";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import ChatComponent from "./_components/chat-component";
+import CommentsComponent from "./_components/comments-component";
 
 const Chat = async ({ params }: { params: { chatId: string } }) => {
   console.log(params);
@@ -18,19 +20,23 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
     .from($chats)
     .where(eq($chats.id, params.chatId));
 
+  console.log(chat);
+
   if (!chat || !chat[0].fileName) {
     return redirect("/dashboard");
   }
 
-  console.log(chat);
-  
   return (
-    <div className="">
-      <div className=""></div>
-      <div className="">
-       
+    <div className="flex max-h-screen h-full">
+      <div className="flex w-full max-h-screen">
+        <div className=" w-[200px]">sidebar</div>
+        <div className="flex-[5] border-x border-l-slate-200 overflow-auto">
+          <ChatComponent />
+        </div>
+        <div className="max-h-screen p-4 flex-[3]">
+        <CommentsComponent />
+        </div>
       </div>
-      c
     </div>
   );
 };

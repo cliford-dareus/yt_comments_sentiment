@@ -42,7 +42,7 @@ const ChatItemsWrapper = ({ chats, pageCount }: ChatsProps) => {
       <div className="grid grid-cols-4 gap-4 mt-4">
         {chats.map((chat) => (
           <div key={chat.id}>{chat.fileName}
-            <Link href={`/chat/${chat.id}`}>DO TO</Link>
+            <Link href={`/chat/${chat.id}`}>Open</Link>
           </div>
         ))}
       </div>

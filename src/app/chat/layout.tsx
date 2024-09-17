@@ -37,7 +37,7 @@ export default async function DashboardLayout({
 
       <div className="w-full h-screen">
         <Navigation user={user} />
-        <div className="flex">
+        <div className="flex h-[calc(100vh-62px)]">
           <div className="w-[60px] min-w-[60px] text-black">Helllo</div>
           <div className="flex-1">{children}</div>
         </div>
