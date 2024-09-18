@@ -1,21 +1,27 @@
 import { supabase } from "@/lib/supabase";
 import { supabase_bucket } from "@/lib/supabase-bucket";
-import Papa from 'papaparse'
+import Papa from "papaparse";
 import CsvComponent from "./csv-component";
 
-const CommentsComponent = async () => {
-  
+type Props = {
+  file_name: string;
+};
+
+const CommentsComponent = async ({ file_name }: Props) => {
   const { data, error } = await supabase_bucket.storage
     .from("yt_comment_bucket")
-    .createSignedUrl("csv-files/XE5vOBL170I_1722284063873.csv", 3600);
+    .createSignedUrl(`${file_name}`, 3600);
 
   if (error) {
-    console.log(error)
+    console.log(error);
   }
 
-  return <div className="">
-    <CsvComponent file={ data?.signedUrl }/>
-  </div>;
+  return (
+    <div className="">
+      <h2>Title</h2>
+      <CsvComponent file={data?.signedUrl} />
+    </div>
+  );
 };
 
 export default CommentsComponent;

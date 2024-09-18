@@ -4,12 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useChat } from "ai/react";
 
-type Props = {};
+type Props = {
+  chatId: string
+};
 
-const ChatComponent = ({}: Props) => {
+const ChatComponent = ({chatId}: Props) => {
   const { messages, input, handleInputChange, handleSubmit } = useChat({
     api: "/api/chat",
-    body: {}
+    body: {
+      chatId
+    },
   });
 
   return (
@@ -37,8 +41,8 @@ const ChatComponent = ({}: Props) => {
           onChange={handleInputChange}
           placeholder="Ask about your comments..."
         />
-        
-          <Button type="submit">Send</Button>
+
+        <Button type="submit">Send</Button>
       </form>
     </div>
   );

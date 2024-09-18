@@ -9,12 +9,10 @@ type Props = {
 
 const CsvComponent = ({ file }: Props) => {
   const [parseData, setParsedData] = useState();
-
   //State to store table Column name
   const [tableRows, setTableRows] = useState([]);
-
   //State to store the values
-  const [values, setValues] = useState([]);
+  const [values, setValues] = useState<string[][]>([]);
 
   useEffect(() => {
     if (!file) return;
@@ -33,37 +31,39 @@ const CsvComponent = ({ file }: Props) => {
         });
 
         setTableRows(rowsArray[0]);
-
-        // Filtered Values
         setValues(valuesArray);
-
-        console.log(rowsArray, valuesArray);
       },
     });
   }, []);
 
-  return <div>
-    <table>
-            <thead>
-              <tr>
-                {tableRows.map((rows, index) => {
-                  return <th key={index}>{rows}</th>;
+  return (
+    <div>
+      <table>
+        <thead>
+          <tr>
+            {tableRows.map((rows, index) => {
+              return <th key={index}>{rows}</th>;
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {values.map((value, index) => {
+            return (
+              <tr key={index} className="">
+                {value.map((val, i) => {
+                  return (
+                    <td className="p-2 border" key={i}>
+                      {val}
+                    </td>
+                  );
                 })}
               </tr>
-            </thead>
-            <tbody>
-              {values.map((value, index) => {
-                return (
-                  <tr key={index}>
-                    {value.map((val, i) => {
-                      return <td key={i}>{val}</td>;
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-  </div>;
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 };
 
 export default CsvComponent;

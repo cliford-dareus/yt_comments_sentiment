@@ -31,10 +31,10 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
       <div className="flex w-full max-h-screen">
         <div className=" w-[200px]">sidebar</div>
         <div className="flex-[5] border-x border-l-slate-200 overflow-auto">
-          <ChatComponent />
+          <ChatComponent chatId={chat[0].id} />
         </div>
-        <div className="max-h-screen p-4 flex-[3]">
-        <CommentsComponent />
+        <div className="max-h-screen p-4 flex-[4] overflow-auto">
+          <CommentsComponent file_name={chat[0].fileName} />
         </div>
       </div>
     </div>
