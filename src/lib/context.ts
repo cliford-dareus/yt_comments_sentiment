@@ -30,7 +30,7 @@ export const getContext = async (query: string, file_name: string) => {
   const matches = await getMatchesFromEmbeddings(queryEmbeddings!, file_name);
 
   const qualifyingDocs = matches.filter(
-    (match) => match.score && match.score > 0.5,
+    (match) => match.score && match.score > 0.7,
   );
 
   type Metadata = {

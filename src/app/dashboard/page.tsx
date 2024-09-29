@@ -29,7 +29,7 @@ const Dashboard = async () => {
         <h2 className="text-xl">Recent Chats</h2>
 
         <div className="w-full mt-4 grid grid-cols-4 gap-4">
-          {chats?.map((card) => (
+          {chats?.slice(0, 4).map((card) => (
             <div
               className="h-[300px] bg-gray-50 relative group/card  dark:hover:shadow-2xl dark:hover:shadow-emerald-500/[0.1] dark:bg-black dark:border-white/[0.2] border-black/[0.1] rounded-xl p-6 border"
               key={card.id}

@@ -2,8 +2,6 @@
 
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import uploadYtToSupabase from "../_actions/get-comments";
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import {
@@ -12,44 +10,19 @@ import {
   FormDescription,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useRouter } from "next/navigation";
-import loadSupabaseToPinecone from "@/lib/pinecone";
 
-const UploadSchema = z.object({
+type Props = {
+  postComments: (data: z.infer<typeof UploadSchema>) => Promise<void>
+}
+
+export const UploadSchema = z.object({
   videoId: z.string(),
 });
 
-const YtUploadForm = () => {
-  const router = useRouter();
-  const [loading, setloading] = useState(false);
-
+const YtUploadForm = ({postComments}: Props) => {
   const form = useForm<z.infer<typeof UploadSchema>>();
-
-  const postComments = async (data: z.infer<typeof UploadSchema>) => {
-    try {
-      setloading(true);
-      const comments = await uploadYtToSupabase({ videoId: data.videoId });
-      console.log(comments)
-      if(!comments.file_key || !comments.file_name){
-        return;
-      }
-      
-      // Load file to pinecone
-      const vertor = await loadSupabaseToPinecone(comments.file_name);
-    
-      router.push(`chat/${comments.chatId}`);
-      setloading(false);
-    } catch (error) {
-      console.log("Error", error);
-    }
-  };
-
-  if (loading) {
-    return <div>LOADING...</div>;
-  }
 
   return (
     <div className="w-full">
@@ -74,7 +47,7 @@ const YtUploadForm = () => {
               </FormItem>
             )}
           />
-          <Button disabled={loading} className="px-8">
+          <Button className="px-8">
             Upload File
           </Button>
         </form>

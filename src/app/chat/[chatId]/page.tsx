@@ -1,11 +1,11 @@
 import { db } from "@/lib/db";
-import { $chats } from "@/lib/db/schema";
+import { $chats, $sentiment } from "@/lib/db/schema";
 import { getUser } from "@/lib/lucia";
-import loadSupabaseToPinecone from "@/lib/pinecone";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ChatComponent from "./_components/chat-component";
 import CommentsComponent from "./_components/comments-component";
+import SidebarComponent from "./_components/sidebar-component";
 
 const Chat = async ({ params }: { params: { chatId: string } }) => {
   console.log(params);
@@ -26,10 +26,17 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
     return redirect("/dashboard");
   }
 
+  // const sentiment = await db
+  //   .select()
+  //   .from($sentiment)
+  //   .where(eq($sentiment.chatId, chat[0].id));
+
   return (
     <div className="flex max-h-screen h-full">
       <div className="flex w-full max-h-screen">
-        <div className=" w-[200px]">sidebar</div>
+        <div className=" w-[200px]">
+          {/* <SidebarComponent sentiment={sentiment}/> */}
+        </div>
         <div className="flex-[5] border-x border-l-slate-200 overflow-auto">
           <ChatComponent chatId={chat[0].id} />
         </div>

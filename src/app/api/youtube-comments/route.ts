@@ -5,7 +5,6 @@ import { generateCSV } from "@/lib/utils";
 import { uploadToSupabase } from "@/lib/supabase-bucket";
 import { getUser, lucia } from "@/lib/lucia";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { $chats } from "@/lib/db/schema";
 
 export async function POST(req: Request) {

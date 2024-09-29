@@ -39,7 +39,7 @@ export const $chats = pgTable("chats", {
 
 export const $message = pgTable("messages", {
   id: text("id").primaryKey(),
-  chatId: integer("chat_id")
+  chatId: text("chat_id")
     .references(() => $chats.id)
     .notNull(),
   content: text("content").notNull(),
@@ -47,6 +47,15 @@ export const $message = pgTable("messages", {
   role: userSystemEnum("role").notNull(),
 });
 
+export const $sentiment = pgTable("sentiment", {
+  id: text("id").primaryKey(),
+  chatId: text("chat_id")
+    .references(() => $chats.id)
+    .notNull(),
+  content: text("content"),
+});
+
 export type UserType = typeof $user.$inferInsert;
 export type SessionType = typeof $session.$inferInsert;
 export type ChatType = typeof $chats.$inferInsert;
+export type SentimentType = typeof $sentiment.$inferInsert;

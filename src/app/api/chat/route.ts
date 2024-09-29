@@ -33,8 +33,6 @@ export async function POST(req: Request) {
   const lastMessage = messages[messages.length - 1];
   const context = await getContext(lastMessage.content, file_name ?? "");
 
-  console.log(context);
-
   const prompt = {
     role: "system",
     parts: [
