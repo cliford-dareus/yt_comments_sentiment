@@ -1,16 +1,14 @@
 import { Pinecone } from "@pinecone-database/pinecone";
 import { convertToAscii } from "./utils";
 import { getEmbedding } from "./embedding";
+import { getPinconeClient } from "./pinecone";
 
 export const getMatchesFromEmbeddings = async (
   embeddings: number[],
   file_name: string,
 ) => {
   try {
-    const client = new Pinecone({
-      // environment: process.env.PINECONE_ENVIRONMENT!,
-      apiKey: process.env.PINECONE_API_KEY!,
-    });
+    const client = await getPinconeClient()
     const pineconeIndex = await client.index(process.env.PINECONE_INDEX_NAME!);
     const namespace = pineconeIndex.namespace(convertToAscii(file_name));
     const queryResult = await namespace.query({

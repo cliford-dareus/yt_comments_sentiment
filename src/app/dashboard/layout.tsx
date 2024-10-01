@@ -1,16 +1,12 @@
 import { getUser } from "@/lib/lucia";
 import Sidebar from "@/components/sidebar";
-import SidebarItems from "@/components/sidebar-item";
 import Navigation from "@/components/ds-navigation";
+import { House, MessageCircle }  from 'lucide-react'
+import SidebarItems from "@/components/sidebar-item";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
-
-const sidebarItems = [
-  { id: 1, text: "Dashboard", path: "/dashboard", icon: "" },
-  { id: 2, text: "Chats", path: "/chat", icon: "" },
-];
 
 export default async function DashboardLayout({
   children,
@@ -25,14 +21,7 @@ export default async function DashboardLayout({
     <main className="relative flex h-screen overflow-hidden">
       {/* <div className="w-[60px]" /> */}
       <Sidebar>
-        {sidebarItems.map((item) => (
-          <SidebarItems
-            key={item.id}
-            text={item.text}
-            path={item.path}
-            icon={item.icon}
-          />
-        ))}
+          <SidebarItems />
       </Sidebar>
 
       <div className="w-full">

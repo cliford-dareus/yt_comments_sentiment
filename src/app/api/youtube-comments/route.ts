@@ -76,7 +76,12 @@ export async function POST(req: Request) {
       });
 
     return NextResponse.json(
-      { chatId: chatId[0].id, file_key: chatId[0].fileId, file_name: chatId[0].fileName },
+      {
+        chatId: chatId[0].id,
+        file_key: chatId[0].fileId,
+        file_name: chatId[0].fileName,
+        csv: blob,
+      },
       { status: 200 },
     );
   } catch (error) {

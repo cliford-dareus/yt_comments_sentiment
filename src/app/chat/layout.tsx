@@ -7,11 +7,6 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-const sidebarItems = [
-  { id: 1, text: "Dashboard", path: "/dashboard", icon: "" },
-  { id: 2, text: "Chats", path: "/chat", icon: "" },
-];
-
 export default async function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
@@ -25,14 +20,7 @@ export default async function DashboardLayout({
     <main className="relative">
       <div className="w-[60px]" />
       <Sidebar>
-        {sidebarItems.map((item) => (
-          <SidebarItems
-            key={item.id}
-            text={item.text}
-            path={item.path}
-            icon={item.icon}
-          />
-        ))}
+        <SidebarItems />
       </Sidebar>
 
       <div className="w-full h-screen">

@@ -9,7 +9,7 @@ type Props = {
   };
 };
 
-const Chats = async ({ searchParams }: Props) => {
+const Chat = async ({ searchParams }: Props) => {
   const user = await getUser();
   const { page, per_page, sort } = searchParams ?? {};
 
@@ -43,4 +43,4 @@ const Chats = async ({ searchParams }: Props) => {
   );
 };
 
-export default Chats;
+export default Chat;

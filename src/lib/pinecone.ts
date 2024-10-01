@@ -4,8 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 import { Document } from "langchain/document";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { TaskType } from "@google/generative-ai";
 import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
 import { convertToAscii } from "./utils";
 import { getEmbeddingBatch } from "./embedding";
@@ -41,7 +39,7 @@ const loadSupabaseToPinecone = async (file_name: string) => {
   });
 
   const splitDocs = await textSplitter.splitDocuments(docs);
-  console.log(splitDocs);
+  
   try {
     // Embed the chunks
     const vector = await Promise.all(
@@ -64,7 +62,7 @@ const loadSupabaseToPinecone = async (file_name: string) => {
     const pinecone = await getPinconeClient();
 
     // Initialize Pinecone index
-    const index = await pinecone.index(process.env.PINECONE_INDEX_NAME!);
+    const index = pinecone.index(process.env.PINECONE_INDEX_NAME!);
     const namespace = index.namespace(convertToAscii(file_name));
     // upsert the vector in pinecone
     await namespace.upsert(vector);
@@ -74,7 +72,22 @@ const loadSupabaseToPinecone = async (file_name: string) => {
   }
 };
 
-const getPinconeClient = () => {
+export const deleteVectorInPinecone = async ({file_name}: {file_name: string}) => {
+  // Create a pinecone client
+  const pinecone = await getPinconeClient();
+  // Initialize Pinecone index
+  const index =  pinecone.index(process.env.PINECONE_INDEX_NAME!);
+
+  try{
+    await index.deleteOne(convertToAscii(file_name));
+    return { status: "Success" };
+  }catch (err){
+    return null;
+  }
+  
+};
+
+export const getPinconeClient = async () => {
   return new Pinecone({
     apiKey: process.env.PINECONE_API_KEY!,
   });

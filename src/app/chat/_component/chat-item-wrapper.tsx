@@ -1,6 +1,8 @@
 "use client";
 
+import { deleteChat } from "@/app/actions";
 import Pagination from "@/components/pagination";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useTransition } from "react";
@@ -18,7 +20,7 @@ const ChatItemsWrapper = ({ chats, pageCount }: ChatsProps) => {
   const page = searchParams.get("page") ?? "1";
   const per_page = searchParams.get("per_page") ?? "8";
   const sort = searchParams.get("sort") ?? "";
-  
+
   const [isPending, startTransition] = useTransition();
 
   const createQueryString = useCallback(
@@ -41,8 +43,17 @@ const ChatItemsWrapper = ({ chats, pageCount }: ChatsProps) => {
     <div className="p-4">
       <div className="grid grid-cols-4 gap-4 mt-4">
         {chats.map((chat) => (
-          <div key={chat.id}>{chat.fileName}
+          <div key={chat.id}>
+            {chat.fileName}
             <Link href={`/chat/${chat.id}`}>Open</Link>
+            <Button
+              onClick={async () => {
+                await deleteChat(chat.id);
+                router.refresh();
+              }}
+            >
+              Delete
+            </Button>
           </div>
         ))}
       </div>

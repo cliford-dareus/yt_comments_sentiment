@@ -25,7 +25,7 @@ const getAllChats = async ({ offset, limit, sort, userId }: QueryChatProps) => {
     .groupBy($chats.fileName)
     .where(eq($chats.userId, userId));
 
-  return [chat, len[0].count];
+  return [chat, len[0]?.count];
 };
 
 export default getAllChats;

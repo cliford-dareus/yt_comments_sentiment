@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-// import { ChevronFirst, ChevronLast } from "lucide-react";
 import React, { Dispatch, useEffect, useState } from "react";
 import {
   SidebarProvider,
@@ -23,18 +22,17 @@ const Sidebar = ({ children }: Props) => {
 };
 
 const SidebarContent = ({ children }: Props) => {
-  const { expanded, setExpanded } = useSidebar();
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (pathname == "/dashboard") {
-      setExpanded(true);
-    }
-  }, [pathname]);
+  const { expanded, setExpanded } = useSidebar();
 
   const handleExpand = () => {
-    if (pathname == "/dashboard") return;
-    setExpanded(!expanded);
+    if (pathname == "/dashboard") {
+      setExpanded(true);
+      return;
+    }
+    if (pathname == "/chat") {
+      setExpanded(!expanded);
+    }
   };
 
   return (

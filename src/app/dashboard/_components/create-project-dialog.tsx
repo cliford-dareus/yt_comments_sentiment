@@ -15,6 +15,7 @@ import { useState } from "react";
 import { z } from "zod";
 import uploadYtToSupabase from "../_actions/get-comments";
 import loadSupabaseToPinecone from "@/lib/pinecone";
+import { getSentimentToChat } from "../_actions/get-sentiment-to-chat";
 
 const CreateProjectDialog = () => {
   const router = useRouter();
@@ -31,12 +32,16 @@ const CreateProjectDialog = () => {
         return;
       }
 
-      setText("");
+      setText("Getting sentiment...");
       // Get the comments sentiment
+      await getSentimentToChat({
+        file_name: comments.file_name,
+        chatId: comments.chatId,
+      });
 
-      setText("");
+      setText("upLoad ");
       // Load file to pinecone
-      const vector = await loadSupabaseToPinecone(comments.file_name);
+      await loadSupabaseToPinecone(comments.file_name);
 
       router.push(`chat/${comments.chatId}`);
       setloading(false);

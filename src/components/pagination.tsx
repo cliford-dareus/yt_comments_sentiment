@@ -1,6 +1,7 @@
 import { useMemo, useTransition } from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context";
 import { Button } from "./ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 // import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type Props = {
@@ -74,7 +75,7 @@ const Pagination = ({
         }}
         disabled={Number(page) === 1 || isPending}
       >
-        {/* <ChevronLeft /> */}left
+        <ChevronLeft />
       </Button>
 
       {paginationRange.map((range, i) =>
@@ -98,7 +99,7 @@ const Pagination = ({
               });
             }}
           >
-            {range}
+            {range? range:'...'}
           </Button>
         )
       )}
@@ -118,7 +119,7 @@ const Pagination = ({
         }}
         disabled={Number(page) === pageCount || isPending}
       >
-        {/* <ChevronRight /> */} rigth
+        <ChevronRight />
       </Button>
     </div>
   );
