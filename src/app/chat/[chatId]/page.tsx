@@ -26,10 +26,10 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
     return redirect("/dashboard");
   }
 
-  // const sentiment = await db
-  //   .select()
-  //   .from($sentiment)
-  //   .where(eq($sentiment.chatId, chat[0].id));
+  const sentiment = await db
+    .select()
+    .from($sentiment)
+    .where(eq($sentiment.chatId, chat[0].id));
 
   return (
     <div className="flex max-h-screen h-full">
