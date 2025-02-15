@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { generateCSV } from "@/lib/utils";
 import { uploadToSupabase } from "@/lib/supabase-bucket";
-import { getUser, lucia } from "@/lib/lucia";
 import { db } from "@/lib/db";
 import { $chats } from "@/lib/db/schema";
 

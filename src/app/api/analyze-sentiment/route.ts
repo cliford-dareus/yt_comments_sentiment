@@ -30,12 +30,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const prompt = `Perform sentiment analysis on the following CSV data:\n\n${csv}\n\nProvide a summary of the sentiment analysis results.`;
+    const prompt = `Perform sentiment analysis on the following CSV data:\n\n${data}\n\nProvide a summary of the sentiment analysis results.`;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const analysis = response.text();
     console.log(analysis);
-    
+
     // Todo :  add to sentiment table
     const sentiment = await db.insert($sentiment).values({
       id: await crypto.randomUUID(),
