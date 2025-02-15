@@ -8,6 +8,7 @@ type Props = {
 };
 
 const CommentsComponent = async ({ file_name }: Props) => {
+  // This should be in an action
   const { data, error } = await supabase_bucket.storage
     .from("yt_comment_bucket")
     .createSignedUrl(`${file_name}`, 3600);

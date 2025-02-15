@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     );
 
     // Save a record in db
-    const chatId = await db
+    const chat = await db
       .insert($chats)
       .values({
         id: await crypto.randomUUID(),
@@ -77,9 +77,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        chatId: chatId[0].id,
-        file_key: chatId[0].fileId,
-        file_name: chatId[0].fileName,
+        chatId: chat[0].id,
+        file_key: chat[0].fileId,
+        file_name: chat[0].fileName,
         csv: blob,
       },
       { status: 200 },

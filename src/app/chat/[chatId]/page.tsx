@@ -8,7 +8,6 @@ import CommentsComponent from "./_components/comments-component";
 import SidebarComponent from "./_components/sidebar-component";
 
 const Chat = async ({ params }: { params: { chatId: string } }) => {
-  console.log(params);
   const user = await getUser();
 
   if (!user) {
@@ -19,8 +18,6 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
     .select()
     .from($chats)
     .where(eq($chats.id, params.chatId));
-
-  console.log(chat);
 
   if (!chat || !chat[0].fileName) {
     return redirect("/dashboard");
