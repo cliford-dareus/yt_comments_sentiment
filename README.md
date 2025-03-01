@@ -36,15 +36,15 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
 
 TODO:
-[] Clean and optimize the youtube api route
-[] Streamligth the getting conmments from yt and save them to a database
-[] Check if embedding is even needed in this project
-[] Save chats with the ai and use it in next conversation
-[] Inccoparate the sentiment analysis into the chatbot for better responses  and improve the user experience`
-[] Improve the user experience by adding a loading spinner while the chatbot is processing the user's input
-[] Implement a feature to allow users to save their favorite chats and access them later
-[] Add a feature to allow users to customize the chatbot's responses
-[] Clean up the codebase and improve readability
-[] Add unit tests for the chatbot functionality
-[] Implement error handling for API requests and responses
-[] Optimize the chatbot's response time and reduce latency
+- [] Clean and optimize the youtube api route
+- [] Streamligth the getting conmments from yt and save them to a database
+- [] Check if embedding is even needed in this project
+- [] Save chats with the ai and use it in next conversation
+- [] Incorporate the sentiment analysis into the chatbot for better responses and improve the user experience
+- [] Improve the user experience by adding a loading spinner while the chatbot is processing the user's input
+- [] Implement a feature to allow users to save their favorite chats and access them later
+- [] Add a feature to allow users to customize the chatbot's responses
+- [] Clean up the codebase and improve readability
+- [] Add unit tests for the chatbot functionality
+- [] Implement error handling for API requests and responses
+- [] Optimize the chatbot's response time and reduce latency
