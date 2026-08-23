@@ -1,6 +1,6 @@
 "use server";
 
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@supabase/supabase-js";
 import { db } from "@/lib/db";
 import { $sentiment } from "@/lib/db/schema";
@@ -42,9 +42,8 @@ export const getSentimentToChat = async ({
 
     const csv = await data.text();
 
-    // Limit payload size sent to the model (keep roughly first ~150 comments worth)
     const lines = csv.split("\n").filter(Boolean);
-    const sample = lines.slice(0, 151).join("\n"); // header + up to 150 rows
+    const sample = lines.slice(0, 151).join("\n");
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
