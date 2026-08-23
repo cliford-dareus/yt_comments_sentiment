@@ -1,35 +1,14 @@
-'use server'
+"use server";
 
-import { cookies } from "next/headers";
-import { googleOauthClient } from "@/lib/oauth";
-import { generateCodeVerifier, generateState } from "arctic";
+/**
+ * @deprecated Use next-auth signIn("google") from the client instead.
+ */
+export async function getGoogleOauth() {
+  return {
+    success: false,
+    url: "",
+    error: "Deprecated. Use NextAuth signIn('google').",
+  };
+}
 
-// Authenticate with google
-export const getGoogleOauth = async () => {
-  try {
-    const state = generateState()
-    const codeVerifier = generateCodeVerifier()
-   
-    cookies().set('codeVerifier', codeVerifier, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production'
-    });
-    
-    cookies().set('state', state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production'
-    });
-    
-    const authUrl = await googleOauthClient.createAuthorizationURL(state, codeVerifier, {
-      scopes: ['email', 'profile']
-    })
-    
-    return { success: true, url: authUrl.toString() }
-  } catch (err) {
-    return { success: false, error: 'Something went wrong' }
-  }
-};
-
-export const getGithubOauth = async () => { };
-
-export type GoogleOauthReturnType = ReturnType<typeof getGoogleOauth>
+export type GoogleOauthReturnType = ReturnType<typeof getGoogleOauth>;
