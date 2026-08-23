@@ -35,16 +35,22 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
 
-TODO:
-- [] Clean and optimize the youtube api route
-- [] Streamligth the getting conmments from yt and save them to a database
-- [] Check if embedding is even needed in this project
-- [] Save chats with the ai and use it in next conversation
-- [] Incorporate the sentiment analysis into the chatbot for better responses and improve the user experience
-- [] Improve the user experience by adding a loading spinner while the chatbot is processing the user's input
-- [] Implement a feature to allow users to save their favorite chats and access them later
-- [] Add a feature to allow users to customize the chatbot's responses
-- [] Clean up the codebase and improve readability
-- [] Add unit tests for the chatbot functionality
-- [] Implement error handling for API requests and responses
-- [] Optimize the chatbot's response time and reduce latency
+## Recent fixes (2026-08)
+
+- Hardened `/api/youtube-comments`: extracts video ID from full URLs, caps comments at 500, better validation & errors.
+- Implemented real Gemini-based sentiment summary (replaces dummy HuggingFace call).
+- Fixed Pinecone embedding batching so vectors are generated correctly.
+- Improved create-project dialog loading / error states.
+- Cleaned up several silent error paths.
+
+## TODO
+
+- [ ] Persist chat messages to the `$message` table so history survives across sessions
+- [ ] Surface the stored sentiment analysis in the chat UI / system prompt
+- [ ] Decide whether full Pinecone RAG is needed long-term vs. simpler DB + LLM approach
+- [ ] Add loading spinner / streaming status while the chatbot is thinking
+- [ ] Allow users to save / star favorite chats
+- [ ] Clean up remaining non-null assertions and improve TypeScript strictness
+- [ ] Add basic unit/integration tests for the YouTube + sentiment paths
+- [ ] Proper rate-limit / quota handling around the YouTube Data API
+- [ ] Consider storing comments directly in Postgres instead of (or in addition to) CSV
