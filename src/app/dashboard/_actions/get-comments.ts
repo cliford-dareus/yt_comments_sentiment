@@ -1,6 +1,6 @@
 "use server";
 
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
 
 function getBaseUrl() {
   if (process.env.NEXT_PUBLIC_APP_URL) {
