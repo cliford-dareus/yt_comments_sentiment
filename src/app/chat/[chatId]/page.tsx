@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $chats, $sentiment } from "@/lib/db/schema";
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ChatComponent from "./_components/chat-component";
@@ -24,7 +24,6 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
     return redirect("/dashboard");
   }
 
-  // Ownership check
   if (chat[0].userId !== user.id) {
     return redirect("/dashboard");
   }
