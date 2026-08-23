@@ -1,7 +1,8 @@
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
 import Sidebar from "@/components/sidebar";
 import SidebarItems from "@/components/sidebar-item";
 import Navigation from "@/components/ds-navigation";
+import { redirect } from "next/navigation";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ export default async function DashboardLayout({
   const user = await getUser();
 
   if (!user) {
-    return;
+    return redirect("/auth");
   }
 
   return (
@@ -26,7 +27,7 @@ export default async function DashboardLayout({
       <div className="w-full h-screen">
         <Navigation user={user} />
         <div className="flex h-[calc(100vh-62px)]">
-          <div className="w-[60px] min-w-[60px] text-black">Helllo</div>
+          <div className="w-[60px] min-w-[60px] text-black" />
           <div className="flex-1">{children}</div>
         </div>
       </div>
