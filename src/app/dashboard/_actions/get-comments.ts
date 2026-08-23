@@ -2,6 +2,16 @@
 
 import { getUser } from "@/lib/lucia";
 
+function getBaseUrl() {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
+
 const uploadYtToSupabase = async (videoId: { videoId: string }) => {
   const user = await getUser();
 
@@ -12,16 +22,11 @@ const uploadYtToSupabase = async (videoId: { videoId: string }) => {
   const userId = user.id;
 
   try {
-    // Use relative URL so it works in any environment (dev / prod)
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/youtube-comments`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, userId }),
-        // credentials not needed for same-origin server action -> route
-      },
-    );
+    const res = await fetch(`${getBaseUrl()}/api/youtube-comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, userId }),
+    });
 
     const data = await res.json();
 
