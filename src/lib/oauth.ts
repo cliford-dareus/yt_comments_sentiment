@@ -1,7 +1,5 @@
-import { Google } from "arctic";
-
-export const googleOauthClient = new Google(
-  process.env.GOOGLE_CLIENT_ID!,
-  process.env.GOOGLE_CLIENT_SECRET!,
-  process.env.NEXT_PUBLIC_URL + '/api/auth/google/callback'
-) 
+/**
+ * @deprecated Google OAuth is handled by NextAuth.
+ * Kept as an empty module so any accidental imports fail loudly at build if reintroduced.
+ */
+export {};
