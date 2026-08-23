@@ -1,8 +1,8 @@
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
 import Sidebar from "@/components/sidebar";
 import Navigation from "@/components/ds-navigation";
-import { House, MessageCircle }  from 'lucide-react'
 import SidebarItems from "@/components/sidebar-item";
+import { redirect } from "next/navigation";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,14 +14,13 @@ export default async function DashboardLayout({
   const user = await getUser();
 
   if (!user) {
-    return;
+    return redirect("/auth");
   }
 
   return (
     <main className="relative flex h-screen overflow-hidden">
-      {/* <div className="w-[60px]" /> */}
       <Sidebar>
-          <SidebarItems />
+        <SidebarItems />
       </Sidebar>
 
       <div className="w-full">
