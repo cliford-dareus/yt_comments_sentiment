@@ -1,14 +1,15 @@
 import {
   pgTable,
-  serial,
   text,
-  varchar,
   timestamp,
-  integer,
   pgEnum,
 } from "drizzle-orm/pg-core";
 
-export const userSystemEnum = pgEnum("user_system_enum", ["system", "user"]);
+export const userSystemEnum = pgEnum("user_system_enum", [
+  "system",
+  "user",
+  "assistant",
+]);
 
 export const $user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -58,4 +59,5 @@ export const $sentiment = pgTable("sentiment", {
 export type UserType = typeof $user.$inferInsert;
 export type SessionType = typeof $session.$inferInsert;
 export type ChatType = typeof $chats.$inferInsert;
-export type SentimentType = typeof $sentiment.$inferInsert;
+export type MessageType = typeof $message.$inferSelect;
+export type SentimentType = typeof $sentiment.$inferSelect;
