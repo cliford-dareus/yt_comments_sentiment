@@ -2,43 +2,87 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useChat } from "ai/react";
+import { useChat, type Message } from "ai/react";
+import { useEffect, useRef } from "react";
 
 type Props = {
   chatId: string;
+  initialMessages?: Message[];
 };
 
-const ChatComponent = ({ chatId }: Props) => {
-  const { messages, input, handleInputChange, handleSubmit } = useChat({
-    api: "/api/chat",
-    body: {
-      chatId,
-    },
-  });
+const ChatComponent = ({ chatId, initialMessages = [] }: Props) => {
+  const { messages, input, handleInputChange, handleSubmit, isLoading } =
+    useChat({
+      api: "/api/chat",
+      body: { chatId },
+      initialMessages,
+    });
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
   return (
-    <div className="relative h-full">
-      <div className="sticky top-0 inset-x-0 p-4 bg-white h-fit">
+    <div className="relative flex flex-col h-full">
+      <div className="sticky top-0 inset-x-0 p-4 bg-white border-b z-10">
         <h3 className="text-xl font-bold">Chat</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Ask anything about the comment section
+        </p>
       </div>
 
-      {messages.length == 0 ? (
-        <div className="px-4 h-[80%] flex items-center justify-center">
-          <div>hello</div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2 px-4 h-[85%]">
-          {messages.map((m) => (
-            <div key={m.id}>
-              {m.role === "user" ? "User: " : "AI: "}
-              {m.content}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {messages.length === 0 && !isLoading ? (
+          <div className="h-full flex items-center justify-center text-center text-muted-foreground text-sm">
+            <div>
+              <p className="font-medium text-foreground mb-1">
+                No messages yet
+              </p>
+              <p>
+                Try asking: "What are people mostly saying?" or
+                "Summarize the criticism"
+              </p>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ) : (
+          <>
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`flex ${
+                  m.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                    m.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  }`}
+                >
+                  {m.content}
+                </div>
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-lg px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 rounded-full bg-current animate-pulse" />
+                  Thinking...
+                </div>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </>
+        )}
+      </div>
 
       <form
-        className="sticky bottom-4 inset-x-0 p-4 bg-white flex gap-4"
+        className="sticky bottom-0 inset-x-0 p-4 bg-white border-t flex gap-3"
         onSubmit={handleSubmit}
       >
         <Input
@@ -46,9 +90,11 @@ const ChatComponent = ({ chatId }: Props) => {
           className="w-full"
           onChange={handleInputChange}
           placeholder="Ask about your comments..."
+          disabled={isLoading}
         />
-
-        <Button type="submit">Send</Button>
+        <Button type="submit" disabled={isLoading || !input.trim()}>
+          {isLoading ? "..." : "Send"}
+        </Button>
       </form>
     </div>
   );
