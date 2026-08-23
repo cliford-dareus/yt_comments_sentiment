@@ -1,6 +1,4 @@
-import { supabase } from "@/lib/supabase";
 import { supabase_bucket } from "@/lib/supabase-bucket";
-import Papa from "papaparse";
 import CsvComponent from "./csv-component";
 
 type Props = {
@@ -8,19 +6,25 @@ type Props = {
 };
 
 const CommentsComponent = async ({ file_name }: Props) => {
-  // This should be in an action
   const { data, error } = await supabase_bucket.storage
     .from("yt_comment_bucket")
-    .createSignedUrl(`${file_name}`, 3600);
+    .createSignedUrl(file_name, 3600);
 
-  if (error) {
-    console.log(error);
+  if (error || !data?.signedUrl) {
+    console.error("Failed to create signed URL for comments:", error);
+    return (
+      <div className="text-sm text-muted-foreground">
+        Could not load comments for this project.
+      </div>
+    );
   }
 
   return (
-    <div className="">
-      <h2>Title</h2>
-      <CsvComponent file={data?.signedUrl} />
+    <div className="h-full flex flex-col">
+      <h2 className="text-lg font-semibold mb-3">Comments</h2>
+      <div className="flex-1 overflow-auto">
+        <CsvComponent file={data.signedUrl} />
+      </div>
     </div>
   );
 };
