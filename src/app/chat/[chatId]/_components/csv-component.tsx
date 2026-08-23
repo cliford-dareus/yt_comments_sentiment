@@ -8,58 +8,79 @@ type Props = {
 };
 
 const CsvComponent = ({ file }: Props) => {
-  const [parseData, setParsedData] = useState();
-  //State to store table Column name
-  const [tableRows, setTableRows] = useState([]);
-  //State to store the values
+  const [tableRows, setTableRows] = useState<string[]>([]);
   const [values, setValues] = useState<string[][]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!file) return;
+
+    setError(null);
+
     Papa.parse(file, {
       header: true,
       download: true,
-      complete: function (results) {
-        const rowsArray: any = [];
-        const valuesArray: any = [];
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.errors?.length) {
+          console.error("CSV parse errors:", results.errors);
+        }
 
-        results.data.map((d: any) => {
-          const value = Object.values(d);
-          const keys = Object.keys(d);
-          rowsArray.push(keys);
-          valuesArray.push(value);
-        });
+        const rows = results.data as Record<string, string>[];
+        if (!rows.length) {
+          setTableRows([]);
+          setValues([]);
+          return;
+        }
 
-        setTableRows(rowsArray[0]);
-        setValues(valuesArray);
+        const headers = Object.keys(rows[0] ?? {});
+        const vals = rows.map((row) => headers.map((h) => row[h] ?? ""));
+
+        setTableRows(headers);
+        setValues(vals);
+      },
+      error: (err) => {
+        console.error("CSV parse failed:", err);
+        setError("Failed to parse comments file.");
       },
     });
-  }, []);
+  }, [file]);
+
+  if (error) {
+    return <p className="text-sm text-red-500">{error}</p>;
+  }
+
+  if (!tableRows.length) {
+    return (
+      <p className="text-sm text-muted-foreground">No comments to display.</p>
+    );
+  }
 
   return (
-    <div>
-      <table>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
         <thead>
           <tr>
-            {tableRows.map((rows, index) => {
-              return <th key={index}>{rows}</th>;
-            })}
+            {tableRows.map((header, index) => (
+              <th
+                key={index}
+                className="text-left p-2 border-b font-medium sticky top-0 bg-background"
+              >
+                {header}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {values.map((value, index) => {
-            return (
-              <tr key={index} className="">
-                {value.map((val, i) => {
-                  return (
-                    <td className="p-2 border" key={i}>
-                      {val}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {values.map((row, index) => (
+            <tr key={index} className="border-b last:border-0">
+              {row.map((val, i) => (
+                <td className="p-2 align-top" key={i}>
+                  {val}
+                </td>
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
