@@ -41,14 +41,23 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - Implemented real Gemini-based sentiment summary (replaces dummy HuggingFace call).
 - Fixed Pinecone embedding batching so vectors are generated correctly.
 - Improved create-project dialog loading / error states.
-- Cleaned up several silent error paths.
+- **Persist chat messages** to the `$message` table (user + assistant) so history survives reloads.
+- **Inject stored sentiment** into the chat system prompt and show it in the sidebar.
+- Loading / "Thinking..." indicator while the model is streaming.
+- Ownership check on chat pages; safer CSV / comments panel.
+
+### Required migration
+
+After pulling, apply the new enum value:
+
+```bash
+# or run the SQL in supabase/migrations/0003_add_assistant_role.sql
+ALTER TYPE "public"."user_system_enum" ADD VALUE IF NOT EXISTS 'assistant';
+```
 
 ## TODO
 
-- [ ] Persist chat messages to the `$message` table so history survives across sessions
-- [ ] Surface the stored sentiment analysis in the chat UI / system prompt
 - [ ] Decide whether full Pinecone RAG is needed long-term vs. simpler DB + LLM approach
-- [ ] Add loading spinner / streaming status while the chatbot is thinking
 - [ ] Allow users to save / star favorite chats
 - [ ] Clean up remaining non-null assertions and improve TypeScript strictness
 - [ ] Add basic unit/integration tests for the YouTube + sentiment paths
