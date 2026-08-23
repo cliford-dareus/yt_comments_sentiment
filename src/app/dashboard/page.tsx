@@ -1,4 +1,4 @@
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import CreateProjectDialog from "./_components/create-project-dialog";
 import getRecentChats from "./_actions/get-recent-chats";
