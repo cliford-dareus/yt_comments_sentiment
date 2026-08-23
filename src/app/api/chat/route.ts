@@ -1,6 +1,6 @@
 import { getContext } from "@/lib/context";
 import { db } from "@/lib/db";
-import { $chats } from "@/lib/db/schema";
+import { $chats, $message, $sentiment } from "@/lib/db/schema";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GoogleGenerativeAIStream, Message, StreamingTextResponse } from "ai";
 import { eq } from "drizzle-orm";
@@ -20,50 +20,90 @@ const buildGoogleGenAIPrompt = (messages: Message[]) => ({
 });
 
 export async function POST(req: Request) {
-  // Extract the `prompt` from the body of the request
-  const { messages, chatId } = await req.json();
+  try {
+    const { messages, chatId } = await req.json();
 
-  const _chats = await db.select().from($chats).where(eq($chats.id, chatId));
+    if (!chatId || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: "chatId and messages are required" },
+        { status: 400 },
+      );
+    }
 
-  if (_chats.length != 1) {
-    return NextResponse.json({ error: "chat not found" }, { status: 404 });
-  }
+    const _chats = await db.select().from($chats).where(eq($chats.id, chatId));
 
-  const file_name = _chats[0].fileName;
-  const lastMessage = messages[messages.length - 1];
-  const context = await getContext(lastMessage.content, file_name ?? "");
+    if (_chats.length !== 1) {
+      return NextResponse.json({ error: "chat not found" }, { status: 404 });
+    }
 
-  const prompt = {
-    role: "system",
-    parts: [
-      {
-        text: `AI assistant is a brand new, powerful, human-like artificial intelligence.
-          The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
-          AI is a well-behaved and well-mannered individual.
-          AI is always friendly, kind, and inspiring, and he is eager to provide vivid and thoughtful responses to the user.
-          AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation.
-          START CONTEXT BLOCK
-          ${context}
-          END OF CONTEXT BLOCK
-          AI assistant will take into account any CONTEXT BLOCK that is provided in a conversation.
-          If the context does not provide the answer to question, the AI assistant will say, "I'm sorry, but I don't know the answer to that question".
-          AI assistant will not apologize for previous responses, but instead will indicated new information was gained.
-          AI assistant will not invent anything that is not drawn directly from the context.
-       `,
+    const file_name = _chats[0].fileName ?? "";
+    const lastMessage = messages[messages.length - 1];
+
+    // Persist the latest user message
+    if (lastMessage?.role === "user" && lastMessage.content) {
+      await db.insert($message).values({
+        id: crypto.randomUUID(),
+        chatId,
+        content: lastMessage.content,
+        role: "user",
+      });
+    }
+
+    // Load stored sentiment summary (if any)
+    const sentimentRows = await db
+      .select()
+      .from($sentiment)
+      .where(eq($sentiment.chatId, chatId))
+      .limit(1);
+
+    const sentimentSummary = sentimentRows[0]?.content?.trim() ?? "";
+
+    // RAG context from comment embeddings
+    const context = await getContext(lastMessage.content, file_name);
+
+    const systemText = `You are a helpful assistant that helps creators understand their YouTube audience through comment analysis.
+
+Traits: expert knowledge, helpful, concise, and actionable. Never invent comments that are not present in the provided context.
+
+${sentimentSummary ? `SENTIMENT ANALYSIS SUMMARY\n${sentimentSummary}\n` : ""}
+${context ? `RELEVANT COMMENTS (retrieved)\n${context}\n` : ""}
+
+Guidelines:
+- Prefer evidence from the sentiment summary and the retrieved comments.
+- If the context does not contain enough information, say so clearly instead of guessing.
+- Keep answers focused and useful for a content creator.`;
+
+    const geminiStream = await genAI
+      .getGenerativeModel({
+        model: "gemini-1.5-flash",
+        systemInstruction: systemText,
+      })
+      .generateContentStream(buildGoogleGenAIPrompt(messages));
+
+    const stream = GoogleGenerativeAIStream(geminiStream, {
+      async onCompletion(completion) {
+        // Persist the full assistant reply once streaming finishes
+        if (completion?.trim()) {
+          try {
+            await db.insert($message).values({
+              id: crypto.randomUUID(),
+              chatId,
+              content: completion,
+              role: "assistant",
+            });
+          } catch (err) {
+            console.error("Failed to save assistant message:", err);
+          }
+        }
       },
-    ],
-  };
+    });
 
-  const geminiStream = await genAI
-    .getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: prompt,
-    })
-    .generateContentStream(buildGoogleGenAIPrompt(messages));
-
-  // Convert the response into a friendly text-stream
-  const stream = GoogleGenerativeAIStream(geminiStream, {});
-
-  // Respond with the stream
-  return new StreamingTextResponse(stream);
+    return new StreamingTextResponse(stream);
+  } catch (error) {
+    console.error("Chat route error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }
