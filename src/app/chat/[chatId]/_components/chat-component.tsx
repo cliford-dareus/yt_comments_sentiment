@@ -25,15 +25,15 @@ const ChatComponent = ({ chatId, initialMessages = [] }: Props) => {
   }, [messages, isLoading]);
 
   return (
-    <div className="relative flex flex-col h-full">
-      <div className="sticky top-0 inset-x-0 p-4 bg-white border-b z-10">
-        <h3 className="text-xl font-bold">Chat</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Ask anything about the comment section
+    <div className="relative flex flex-col h-full min-h-0">
+      <div className="shrink-0 px-4 py-2.5 bg-white border-b">
+        <h3 className="text-base font-semibold">Chat</h3>
+        <p className="text-xs text-muted-foreground">
+          Dig into themes, questions, or specific reactions
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
         {messages.length === 0 && !isLoading ? (
           <div className="h-full flex items-center justify-center text-center text-muted-foreground text-sm">
             <div>
@@ -41,7 +41,7 @@ const ChatComponent = ({ chatId, initialMessages = [] }: Props) => {
                 No messages yet
               </p>
               <p>
-                Try asking: "What are people mostly saying?" or
+                Try: "What are people mostly saying?" or
                 "Summarize the criticism"
               </p>
             </div>
@@ -82,7 +82,7 @@ const ChatComponent = ({ chatId, initialMessages = [] }: Props) => {
       </div>
 
       <form
-        className="sticky bottom-0 inset-x-0 p-4 bg-white border-t flex gap-3"
+        className="shrink-0 p-4 bg-white border-t flex gap-3"
         onSubmit={handleSubmit}
       >
         <Input
