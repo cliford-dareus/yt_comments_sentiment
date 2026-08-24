@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { generateCSV } from "@/lib/utils";
 import { uploadToSupabase } from "@/lib/supabase-bucket";
 import { db } from "@/lib/db";
-import { $chats } from "@/lib/db/schema";
+import { $chats, $comments } from "@/lib/db/schema";
 
 const MAX_COMMENTS = 500;
 
@@ -13,18 +13,15 @@ function extractVideoId(input: string): string | null {
 
   const trimmed = input.trim();
 
-  // Already a bare 11-char video ID
   if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
     return trimmed;
   }
 
   try {
     const url = new URL(trimmed);
-    // youtu.be/<id>
     if (url.hostname === "youtu.be") {
       return url.pathname.slice(1).split("/")[0] || null;
     }
-    // youtube.com/watch?v=<id> or /embed/<id> or /shorts/<id>
     if (url.hostname.includes("youtube.com")) {
       const v = url.searchParams.get("v");
       if (v) return v;
@@ -56,7 +53,10 @@ export async function POST(req: Request) {
     const videoId = extractVideoId(String(rawVideoId));
     if (!videoId) {
       return NextResponse.json(
-        { error: "Could not extract a valid YouTube video ID from the provided value" },
+        {
+          error:
+            "Could not extract a valid YouTube video ID from the provided value",
+        },
         { status: 400 },
       );
     }
@@ -73,9 +73,9 @@ export async function POST(req: Request) {
       auth: process.env.YOUTUBE_API_KEY,
     });
 
-    const comments: Awaited<
-      ReturnType<typeof youtube.commentThreads.list>
-    >["data"]["items"] = [];
+    const commentThreads: NonNullable<
+      Awaited<ReturnType<typeof youtube.commentThreads.list>>["data"]["items"]
+    > = [];
 
     let pageToken: string | undefined = undefined;
 
@@ -89,62 +89,92 @@ export async function POST(req: Request) {
       });
 
       if (response.data.items?.length) {
-        comments.push(...response.data.items);
+        commentThreads.push(...response.data.items);
       }
 
       pageToken = response.data.nextPageToken ?? undefined;
 
-      // Hard cap to protect quota and downstream processing
-      if (comments.length >= MAX_COMMENTS) {
+      if (commentThreads.length >= MAX_COMMENTS) {
         break;
       }
     } while (pageToken);
 
-    if (!comments.length) {
+    if (!commentThreads.length) {
       return NextResponse.json(
         { error: "This video has no comments (or comments are disabled)." },
         { status: 400 },
       );
     }
 
-    // Keep only top-level comment text, drop empties, respect the cap
-    const records = comments
-      .slice(0, MAX_COMMENTS)
-      .map((c) => c.snippet?.topLevelComment?.snippet?.textDisplay?.trim())
-      .filter((text): text is string => Boolean(text));
+    type ParsedComment = {
+      youtubeCommentId: string | null;
+      authorDisplayName: string | null;
+      text: string;
+      likeCount: number;
+      publishedAt: Date | null;
+    };
 
-    if (!records.length) {
+    const parsed: ParsedComment[] = commentThreads
+      .slice(0, MAX_COMMENTS)
+      .map((thread) => {
+        const snip = thread.snippet?.topLevelComment?.snippet;
+        const text = snip?.textDisplay?.trim() ?? "";
+        return {
+          youtubeCommentId: thread.snippet?.topLevelComment?.id ?? null,
+          authorDisplayName: snip?.authorDisplayName ?? null,
+          text,
+          likeCount: snip?.likeCount ?? 0,
+          publishedAt: snip?.publishedAt ? new Date(snip.publishedAt) : null,
+        };
+      })
+      .filter((c) => Boolean(c.text));
+
+    if (!parsed.length) {
       return NextResponse.json(
         { error: "No usable comment text found." },
         { status: 400 },
       );
     }
 
-    const csvContent = await generateCSV(records);
+    // Keep CSV upload for Pinecone / legacy path
+    const csvContent = await generateCSV(parsed.map((c) => c.text));
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-
     const file = await uploadToSupabase(videoId, blob, userId);
 
-    const chat = await db
-      .insert($chats)
-      .values({
-        id: crypto.randomUUID(),
-        userId,
-        fileId: file.id,
-        fileName: file.path,
-      })
-      .returning({
-        id: $chats.id,
-        fileId: $chats.fileId,
-        fileName: $chats.fileName,
-      });
+    const chatId = crypto.randomUUID();
+
+    await db.insert($chats).values({
+      id: chatId,
+      userId,
+      fileId: file.id,
+      fileName: file.path,
+      videoId,
+    });
+
+    // Persist comments in Postgres
+    const commentRows = parsed.map((c) => ({
+      id: crypto.randomUUID(),
+      chatId,
+      youtubeCommentId: c.youtubeCommentId,
+      authorDisplayName: c.authorDisplayName,
+      text: c.text,
+      likeCount: c.likeCount,
+      publishedAt: c.publishedAt,
+    }));
+
+    // Insert in chunks to avoid huge payloads
+    const CHUNK = 100;
+    for (let i = 0; i < commentRows.length; i += CHUNK) {
+      await db.insert($comments).values(commentRows.slice(i, i + CHUNK));
+    }
 
     return NextResponse.json(
       {
-        chatId: chat[0].id,
-        file_key: chat[0].fileId,
-        file_name: chat[0].fileName,
-        commentCount: records.length,
+        chatId,
+        file_key: file.id,
+        file_name: file.path,
+        commentCount: commentRows.length,
+        videoId,
       },
       { status: 200 },
     );
