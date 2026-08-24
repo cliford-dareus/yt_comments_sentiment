@@ -42,6 +42,7 @@ Google OAuth redirect URI: `http://localhost:3000/api/auth/callback/google`
 - **Per-comment sentiment** labels (`positive` / `negative` / `neutral`) via Gemini batches
 - Overall **insights** summary + distribution bar in the sidebar
 - Filterable comments panel (search + sentiment tabs)
+- **Reply assistant**: draft a reply per comment with tone (friendly / professional / playful / apologetic) + copy
 - Chat with comment context (RAG via Pinecone still available)
 
 ## Required DB migrations
@@ -60,12 +61,13 @@ Apply `supabase/migrations/0004_comments_table.sql` before creating new projects
 - Auth: Lucia → NextAuth
 - Comments stored in `comments` table (not only CSV)
 - Per-comment labeling + insights sidebar
+- Reply assistant on each comment
 - Chat message persistence, sentiment in system prompt
 
 ## TODO
 
-- [ ] Reply assistant (draft replies to comments)
 - [ ] Star / rename projects
 - [ ] Export summary CSV/PDF
 - [ ] Background jobs for large comment sets
 - [ ] Decide long-term Pinecone vs DB-only context
+- [ ] Optional: draft a community-post / pinned comment from insights
