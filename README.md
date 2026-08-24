@@ -20,52 +20,52 @@ Lucia was replaced with **NextAuth (v4)** + Google provider.
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=generate-a-long-random-string
 
-# Google OAuth (same console project as before is fine)
+# Google OAuth
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# Existing app secrets
+# App secrets
 GOOGLE_API_KEY=
 YOUTUBE_API_KEY=
+DATABASE_URL=
 NEXT_PUBLIC_SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
 PINECONE_API_KEY=
 PINECONE_INDEX_NAME=
 ```
 
-In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → your OAuth client, add:
+Google OAuth redirect URI: `http://localhost:3000/api/auth/callback/google`
 
-- Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
-- (Production) `https://YOUR_DOMAIN/api/auth/callback/google`
+## Features
 
-Generate `NEXTAUTH_SECRET` with:
+- Fetch YouTube comments (capped) and store them in **Postgres**
+- **Per-comment sentiment** labels (`positive` / `negative` / `neutral`) via Gemini batches
+- Overall **insights** summary + distribution bar in the sidebar
+- Filterable comments panel (search + sentiment tabs)
+- Chat with comment context (RAG via Pinecone still available)
 
-```bash
-openssl rand -base64 32
-```
-
-Users are upserted into the existing `$user` table on Google sign-in. Session strategy is JWT (no Lucia session table required).
-
-## Recent fixes (2026-08)
-
-- **Auth migrated from Lucia → NextAuth** (Google sign-in).
-- Hardened `/api/youtube-comments`: video ID from URLs, 500-comment cap.
-- Real Gemini sentiment summary.
-- Fixed Pinecone embedding batching.
-- Persist chat messages; inject sentiment into prompt + sidebar.
-- Loading indicator in chat UI.
-
-### Required DB migration (messages)
+## Required DB migrations
 
 ```sql
+-- messages role
 ALTER TYPE "public"."user_system_enum" ADD VALUE IF NOT EXISTS 'assistant';
+
+-- comments table + enum (or run supabase/migrations/0004_comments_table.sql)
 ```
+
+Apply `supabase/migrations/0004_comments_table.sql` before creating new projects.
+
+## Recent work (2026-08)
+
+- Auth: Lucia → NextAuth
+- Comments stored in `comments` table (not only CSV)
+- Per-comment labeling + insights sidebar
+- Chat message persistence, sentiment in system prompt
 
 ## TODO
 
-- [ ] Decide whether full Pinecone RAG is needed long-term vs. simpler DB + LLM approach
-- [ ] Allow users to save / star favorite chats
-- [ ] Clean up remaining non-null assertions and improve TypeScript strictness
-- [ ] Add basic unit/integration tests for the YouTube + sentiment paths
-- [ ] Proper rate-limit / quota handling around the YouTube Data API
-- [ ] Consider storing comments directly in Postgres instead of (or in addition to) CSV
+- [ ] Reply assistant (draft replies to comments)
+- [ ] Star / rename projects
+- [ ] Export summary CSV/PDF
+- [ ] Background jobs for large comment sets
+- [ ] Decide long-term Pinecone vs DB-only context
