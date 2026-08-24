@@ -31,13 +31,16 @@ const CreateProjectDialog = () => {
       setStatus("Fetching comments from YouTube...");
       const comments = await uploadYtToSupabase({ videoId: data.videoId });
 
-      if (!comments || comments.error || !comments.file_key || !comments.file_name) {
-        setError(comments?.error ?? "Failed to fetch comments. Please check the URL and try again.");
+      if (!comments || comments.error || !comments.chatId) {
+        setError(
+          comments?.error ??
+            "Failed to fetch comments. Please check the URL and try again.",
+        );
         setLoading(false);
         return;
       }
 
-      setStatus("Analyzing sentiment...");
+      setStatus("Labeling comments & building insights...");
       const sentimentResult = await getSentimentToChat({
         file_name: comments.file_name,
         chatId: comments.chatId,
@@ -45,11 +48,13 @@ const CreateProjectDialog = () => {
 
       if (sentimentResult?.error) {
         console.warn("Sentiment step failed:", sentimentResult.error);
-        // Non-blocking for now – still proceed to chat
+        // Non-blocking – still proceed to chat
       }
 
-      setStatus("Building search index...");
-      await loadSupabaseToPinecone(comments.file_name);
+      if (comments.file_name) {
+        setStatus("Building search index...");
+        await loadSupabaseToPinecone(comments.file_name);
+      }
 
       setStatus("Redirecting...");
       router.push(`/chat/${comments.chatId}`);
@@ -84,14 +89,14 @@ const CreateProjectDialog = () => {
         {loading ? (
           <div className="py-8 text-center space-y-2">
             <p className="text-sm text-muted-foreground">{status}</p>
-            <p className="text-xs text-muted-foreground">This can take a minute for videos with many comments.</p>
+            <p className="text-xs text-muted-foreground">
+              Labeling can take a bit on videos with many comments.
+            </p>
           </div>
         ) : (
           <>
             <YtUploadForm postComments={postComments} />
-            {error && (
-              <p className="mt-3 text-sm text-red-500">{error}</p>
-            )}
+            {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
           </>
         )}
       </DialogContent>
