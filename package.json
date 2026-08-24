@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^0.0.48",
+    "@google/generative-ai": "^0.21.0",
     "@hookform/resolvers": "^3.9.0",
     "@huggingface/transformers": "^3.0.1",
     "@langchain/community": "^0.2.20",
