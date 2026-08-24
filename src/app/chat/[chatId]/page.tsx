@@ -57,7 +57,7 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
         </div>
 
         <div className="max-h-screen p-4 flex-[4] overflow-hidden hidden lg:flex lg:flex-col">
-          <CommentsPanel comments={comments} />
+          <CommentsPanel chatId={chat[0].id} comments={comments} />
         </div>
       </div>
     </div>
