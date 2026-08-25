@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { draftCommunityPost } from "../_actions/draft-reply";
 import { Button } from "@/components/ui/button";
+import type { HealthScoreResult } from "@/lib/health-score";
 
 type Stats = {
   total: number;
@@ -13,6 +14,7 @@ type Stats = {
   positivePct: number;
   negativePct: number;
   neutralPct: number;
+  health?: HealthScoreResult | null;
 } | null;
 
 type SampleComment = {
@@ -31,16 +33,87 @@ type Props = {
   videoId?: string | null;
 };
 
-function overallLabel(stats: NonNullable<Stats>) {
-  if (stats.positivePct >= stats.negativePct + 15) return "Mostly positive";
-  if (stats.negativePct >= stats.positivePct + 15) return "Mostly negative";
-  return "Mixed";
-}
+const colorMap: Record<
+  NonNullable<HealthScoreResult>["color"],
+  { ring: string; text: string; bg: string; bar: string }
+> = {
+  emerald: {
+    ring: "stroke-emerald-500",
+    text: "text-emerald-700",
+    bg: "bg-emerald-50 border-emerald-100",
+    bar: "bg-emerald-500",
+  },
+  lime: {
+    ring: "stroke-lime-500",
+    text: "text-lime-700",
+    bg: "bg-lime-50 border-lime-100",
+    bar: "bg-lime-500",
+  },
+  amber: {
+    ring: "stroke-amber-500",
+    text: "text-amber-700",
+    bg: "bg-amber-50 border-amber-100",
+    bar: "bg-amber-500",
+  },
+  orange: {
+    ring: "stroke-orange-500",
+    text: "text-orange-700",
+    bg: "bg-orange-50 border-orange-100",
+    bar: "bg-orange-500",
+  },
+  red: {
+    ring: "stroke-red-500",
+    text: "text-red-700",
+    bg: "bg-red-50 border-red-100",
+    bar: "bg-red-500",
+  },
+};
 
-function overallColor(stats: NonNullable<Stats>) {
-  if (stats.positivePct >= stats.negativePct + 15) return "text-emerald-700";
-  if (stats.negativePct >= stats.positivePct + 15) return "text-red-700";
-  return "text-amber-700";
+function HealthRing({
+  score,
+  color,
+}: {
+  score: number;
+  color: HealthScoreResult["color"];
+}) {
+  const r = 36;
+  const c = 2 * Math.PI * r;
+  const offset = c - (score / 100) * c;
+  const styles = colorMap[color];
+
+  return (
+    <div className="relative h-[88px] w-[88px] shrink-0">
+      <svg className="h-full w-full -rotate-90" viewBox="0 0 88 88">
+        <circle
+          cx="44"
+          cy="44"
+          r={r}
+          fill="none"
+          strokeWidth="8"
+          className="stroke-slate-100"
+        />
+        <circle
+          cx="44"
+          cy="44"
+          r={r}
+          fill="none"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          className={styles.ring}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-xl font-bold tabular-nums ${styles.text}`}>
+          {score}
+        </span>
+        <span className="text-[9px] uppercase tracking-wide text-muted-foreground">
+          / 100
+        </span>
+      </div>
+    </div>
+  );
 }
 
 const InsightsDashboard = ({
@@ -51,6 +124,7 @@ const InsightsDashboard = ({
   videoId,
 }: Props) => {
   const [expanded, setExpanded] = useState(false);
+  const [showComponents, setShowComponents] = useState(false);
   const [postLoading, setPostLoading] = useState(false);
   const [communityPost, setCommunityPost] = useState<string | null>(null);
   const [postError, setPostError] = useState<string | null>(null);
@@ -100,6 +174,9 @@ const InsightsDashboard = ({
     );
   }
 
+  const health = stats.health ?? null;
+  const healthStyles = health ? colorMap[health.color] : null;
+
   const cards = [
     {
       label: "Comments",
@@ -127,17 +204,98 @@ const InsightsDashboard = ({
     },
   ];
 
+  const componentRows = health
+    ? [
+        {
+          key: "sentimentBalance",
+          label: "Sentiment balance",
+          value: health.components.sentimentBalance,
+          hint: "Positive vs negative share",
+        },
+        {
+          key: "engagementQuality",
+          label: "Engagement quality",
+          value: health.components.engagementQuality,
+          hint: "Like-weighted polarity",
+        },
+        {
+          key: "criticismPressure",
+          label: "Criticism pressure",
+          value: health.components.criticismPressure,
+          hint: "Higher = less liked negativity",
+        },
+        {
+          key: "coverage",
+          label: "Label coverage",
+          value: health.components.coverage,
+          hint: "% of comments labeled",
+        },
+      ]
+    : [];
+
   return (
     <div className="border-b bg-white shrink-0">
       <div className="px-4 pt-4 pb-3 space-y-3">
+        {health && healthStyles && (
+          <div
+            className={`rounded-xl border p-3 flex flex-col sm:flex-row gap-3 sm:items-center ${healthStyles.bg}`}
+          >
+            <HealthRing score={health.score} color={health.color} />
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Creator health score
+                  </p>
+                  <p className={`text-lg font-semibold ${healthStyles.text}`}>
+                    {health.grade}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowComponents((v) => !v)}
+                  className="text-[11px] font-medium text-slate-600 hover:underline"
+                >
+                  {showComponents ? "Hide breakdown" : "How it’s scored"}
+                </button>
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                {health.summary}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {health && showComponents && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {componentRows.map((row) => (
+              <div
+                key={row.key}
+                className="rounded-lg border bg-white px-3 py-2 space-y-1.5"
+              >
+                <div className="flex justify-between text-xs gap-2">
+                  <span className="font-medium text-slate-700">{row.label}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {row.value}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${healthStyles?.bar ?? "bg-slate-400"}`}
+                    style={{ width: `${row.value}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">{row.hint}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Insights
+              Sentiment mix
             </h2>
-            <p className={`text-lg font-semibold mt-0.5 ${overallColor(stats)}`}>
-              {overallLabel(stats)}
-            </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {summary && (
