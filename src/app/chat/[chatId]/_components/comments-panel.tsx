@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   draftReplyToComment,
+  saveReplyDraft,
   type ReplyTone,
 } from "../_actions/draft-reply";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ type Comment = {
   publishedAt: Date | string | null;
   sentimentLabel: "positive" | "negative" | "neutral" | null;
   sentimentScore: number | null;
+  replyDraft?: string | null;
 };
 
 type Filter = "all" | "positive" | "negative" | "neutral";
@@ -42,10 +44,24 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
   const [query, setQuery] = useState("");
   const [tone, setTone] = useState<ReplyTone>("friendly");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [variantsById, setVariantsById] = useState<Record<string, string[]>>(
+    {},
+  );
+  const [selectedVariant, setSelectedVariant] = useState<
+    Record<string, number>
+  >({});
+  const [draftText, setDraftText] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    for (const c of comments) {
+      if (c.replyDraft) initial[c.id] = c.replyDraft;
+    }
+    return initial;
+  });
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [errorById, setErrorById] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return comments.filter((c) => {
@@ -85,7 +101,7 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
 
     setLoadingId(null);
 
-    if (result.error || !result.reply) {
+    if (result.error || !result.variants?.length) {
       setErrorById((prev) => ({
         ...prev,
         [commentId]: result.error ?? "Failed to draft reply",
@@ -93,10 +109,24 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
       return;
     }
 
-    setDrafts((prev) => ({ ...prev, [commentId]: result.reply! }));
+    setVariantsById((prev) => ({ ...prev, [commentId]: result.variants! }));
+    setSelectedVariant((prev) => ({ ...prev, [commentId]: 0 }));
+    setDraftText((prev) => ({
+      ...prev,
+      [commentId]: result.variants![0],
+    }));
   };
 
-  const handleCopy = async (commentId: string, text: string) => {
+  const pickVariant = (commentId: string, index: number) => {
+    const variants = variantsById[commentId];
+    if (!variants?.[index]) return;
+    setSelectedVariant((prev) => ({ ...prev, [commentId]: index }));
+    setDraftText((prev) => ({ ...prev, [commentId]: variants[index] }));
+  };
+
+  const handleCopy = async (commentId: string) => {
+    const text = draftText[commentId];
+    if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(commentId);
@@ -107,6 +137,30 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
         [commentId]: "Could not copy to clipboard",
       }));
     }
+  };
+
+  const handleSave = async (commentId: string) => {
+    const text = draftText[commentId]?.trim();
+    if (!text) return;
+
+    setSavingId(commentId);
+    const result = await saveReplyDraft({
+      chatId,
+      commentId,
+      draft: text,
+    });
+    setSavingId(null);
+
+    if (result.error) {
+      setErrorById((prev) => ({
+        ...prev,
+        [commentId]: result.error!,
+      }));
+      return;
+    }
+
+    setSavedId(commentId);
+    setTimeout(() => setSavedId(null), 1500);
   };
 
   return (
@@ -177,15 +231,22 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
                 <span className="font-medium text-slate-800 truncate">
                   {c.authorDisplayName ?? "Unknown"}
                 </span>
-                {c.sentimentLabel && (
-                  <span
-                    className={`shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                      badgeClass[c.sentimentLabel] ?? badgeClass.neutral
-                    }`}
-                  >
-                    {c.sentimentLabel}
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {c.replyDraft && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      Saved draft
+                    </span>
+                  )}
+                  {c.sentimentLabel && (
+                    <span
+                      className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                        badgeClass[c.sentimentLabel] ?? badgeClass.neutral
+                      }`}
+                    >
+                      {c.sentimentLabel}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
@@ -209,9 +270,9 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
                 >
                   {loadingId === c.id
                     ? "Drafting..."
-                    : drafts[c.id]
-                      ? "Regenerate"
-                      : "Draft reply"}
+                    : draftText[c.id] || variantsById[c.id]
+                      ? "New drafts"
+                      : "Draft replies"}
                 </Button>
               </div>
 
@@ -219,23 +280,64 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
                 <p className="text-xs text-red-500">{errorById[c.id]}</p>
               )}
 
-              {drafts[c.id] && (
+              {(draftText[c.id] || variantsById[c.id]) && (
                 <div className="rounded-md border border-indigo-100 bg-white p-2.5 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
-                      Suggested reply
+                      Reply drafts
                     </span>
-                    <button
-                      type="button"
-                      className="text-[11px] text-indigo-600 hover:underline"
-                      onClick={() => handleCopy(c.id, drafts[c.id])}
-                    >
-                      {copiedId === c.id ? "Copied" : "Copy"}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="text-[11px] text-indigo-600 hover:underline"
+                        onClick={() => handleCopy(c.id)}
+                      >
+                        {copiedId === c.id ? "Copied" : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[11px] text-indigo-600 hover:underline disabled:opacity-50"
+                        disabled={savingId === c.id || !draftText[c.id]?.trim()}
+                        onClick={() => handleSave(c.id)}
+                      >
+                        {savingId === c.id
+                          ? "Saving…"
+                          : savedId === c.id
+                            ? "Saved"
+                            : "Save"}
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                    {drafts[c.id]}
-                  </p>
+
+                  {variantsById[c.id]?.length > 1 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {variantsById[c.id].map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => pickVariant(c.id, i)}
+                          className={`text-[11px] px-2 py-0.5 rounded border ${
+                            (selectedVariant[c.id] ?? 0) === i
+                              ? "bg-indigo-600 text-white border-indigo-600"
+                              : "bg-white text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          Option {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <textarea
+                    className="w-full min-h-[72px] rounded-md border border-slate-200 px-2.5 py-2 text-sm text-slate-800 leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    value={draftText[c.id] ?? ""}
+                    onChange={(e) =>
+                      setDraftText((prev) => ({
+                        ...prev,
+                        [c.id]: e.target.value,
+                      }))
+                    }
+                  />
                 </div>
               )}
             </div>
