@@ -6,6 +6,7 @@ import {
   labelCommentsForChat,
   buildOverallSummary,
 } from "@/lib/analyze-comments";
+import { enrichThemesAndTriage } from "@/lib/themes-and-triage";
 import loadSupabaseToPinecone from "@/lib/pinecone";
 import { QuotaExceededError } from "@/lib/youtube-quota";
 
@@ -54,7 +55,6 @@ async function claimJob(jobId: string) {
   return claimed.length > 0;
 }
 
-/** Reset any non-completed job so it can be claimed again. */
 export async function resetJobForRetry(jobId: string, userId?: string) {
   const conditions = userId
     ? and(
@@ -79,7 +79,6 @@ export async function resetJobForRetry(jobId: string, userId?: string) {
   return reset[0] ?? null;
 }
 
-/** @deprecated use resetJobForRetry */
 export async function resetFailedJob(jobId: string, userId?: string) {
   return Boolean(await resetJobForRetry(jobId, userId));
 }
@@ -150,7 +149,6 @@ export async function processAnalysisJob(jobId: string) {
     let commentCount = current.commentCount;
     let fileName: string | null = null;
 
-    // Resume path: chat already created (failed/stuck during labeling)
     if (chatId) {
       await updateJob(jobId, {
         status: "labeling",
@@ -189,29 +187,39 @@ export async function processAnalysisJob(jobId: string) {
       chatId!,
       async ({ labeled, total, batchIndex, batchCount }) => {
         const fraction = total ? labeled / total : 1;
-        const pct = Math.round(45 + fraction * 23);
+        const pct = Math.round(45 + fraction * 20);
         await updateJob(jobId, {
-          progress: Math.min(68, pct),
+          progress: Math.min(65, pct),
           stepLabel: `Labeling comments… batch ${batchIndex}/${batchCount} (${labeled}/${total})`,
         });
       },
     );
 
     await updateJob(jobId, {
-      progress: 70,
+      progress: 68,
       stepLabel: "Building insights summary…",
     });
 
     await buildOverallSummary(chatId!);
 
     await updateJob(jobId, {
+      progress: 74,
+      stepLabel: "Clustering themes + triage inbox…",
+    });
+
+    try {
+      await enrichThemesAndTriage(chatId!);
+    } catch (themeErr) {
+      console.error("themes/triage failed (non-fatal):", themeErr);
+    }
+
+    await updateJob(jobId, {
       status: "indexing",
-      progress: 80,
+      progress: 85,
       stepLabel: "Building search index…",
     });
 
     try {
-      // Prefer file from this run; otherwise look up chat row
       if (!fileName) {
         const { $chats } = await import("@/lib/db/schema");
         const chatRows = await db
