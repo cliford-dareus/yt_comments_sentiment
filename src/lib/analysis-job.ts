@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { fetchAndStoreYoutubeComments } from "@/lib/fetch-youtube-comments";
 import {
   labelCommentsForChat,
@@ -39,6 +39,25 @@ async function updateJob(
 }
 
 /**
+ * Atomically claim a pending job. Returns false if another worker already claimed it.
+ */
+async function claimJob(jobId: string) {
+  const claimed = await db
+    .update($jobs)
+    .set({
+      status: "fetching",
+      progress: 5,
+      stepLabel: "Fetching comments from YouTube…",
+      error: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq($jobs.id, jobId), eq($jobs.status, "pending")))
+    .returning({ id: $jobs.id });
+
+  return claimed.length > 0;
+}
+
+/**
  * Run a full analysis pipeline for a job row.
  * Safe to call from a route handler; updates DB progress as it goes.
  */
@@ -50,32 +69,37 @@ export async function processAnalysisJob(jobId: string) {
     throw new Error("Job not found");
   }
 
-  // Don't re-run terminal or in-flight jobs from a second worker
   if (job.status === "completed") {
-    return { chatId: job.chatId, alreadyDone: true };
+    return { chatId: job.chatId, alreadyDone: true as const };
   }
+
+  if (job.status === "failed") {
+    // Allow manual re-run of failed jobs by resetting to pending first if desired.
+    return { chatId: job.chatId, alreadyDone: false as const, failed: true as const };
+  }
+
   if (
     job.status === "fetching" ||
     job.status === "labeling" ||
     job.status === "indexing"
   ) {
-    // Allow resume only if stuck? For v1 skip duplicate runs.
-    return { chatId: job.chatId, alreadyRunning: true };
+    return { chatId: job.chatId, alreadyRunning: true as const };
   }
 
-  try {
-    await updateJob(jobId, {
-      status: "fetching",
-      progress: 5,
-      stepLabel: "Fetching comments from YouTube…",
-      error: null,
-    });
+  const gotLock = await claimJob(jobId);
+  if (!gotLock) {
+    return { chatId: job.chatId, alreadyRunning: true as const };
+  }
 
+  // Re-read after claim
+  const fresh = await db.select().from($jobs).where(eq($jobs.id, jobId)).limit(1);
+  const current = fresh[0]!;
+
+  try {
     const fetchResult = await fetchAndStoreYoutubeComments({
-      rawVideoInput: job.videoInput,
-      userId: job.userId,
+      rawVideoInput: current.videoInput,
+      userId: current.userId,
       onProgress: async ({ pages, comments }) => {
-        // Map fetch progress roughly into 5–40%
         const pct = Math.min(40, 5 + pages * 6);
         await updateJob(jobId, {
           progress: pct,
@@ -113,7 +137,6 @@ export async function processAnalysisJob(jobId: string) {
         await loadSupabaseToPinecone(fetchResult.file_name);
       }
     } catch (indexErr) {
-      // Non-fatal: chat + insights still usable without Pinecone
       console.error("Pinecone indexing failed (non-fatal):", indexErr);
     }
 
@@ -127,7 +150,7 @@ export async function processAnalysisJob(jobId: string) {
       error: null,
     });
 
-    return { chatId: fetchResult.chatId, alreadyDone: false };
+    return { chatId: fetchResult.chatId, alreadyDone: false as const };
   } catch (err) {
     const message =
       err instanceof QuotaExceededError
