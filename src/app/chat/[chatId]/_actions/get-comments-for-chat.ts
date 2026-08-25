@@ -18,6 +18,7 @@ export async function getCommentsForChat(chatId: string) {
         publishedAt: $comments.publishedAt,
         sentimentLabel: $comments.sentimentLabel,
         sentimentScore: $comments.sentimentScore,
+        replyDraft: $comments.replyDraft,
       })
       .from($comments)
       .where(eq($comments.chatId, chatId))
