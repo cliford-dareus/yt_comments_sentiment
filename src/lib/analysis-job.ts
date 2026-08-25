@@ -58,6 +58,72 @@ async function claimJob(jobId: string) {
 }
 
 /**
+ * Reset a failed job to pending so it can be claimed again.
+ * Returns false if the job is not in failed state (or missing).
+ */
+export async function resetFailedJob(jobId: string, userId?: string) {
+  const conditions = userId
+    ? and(
+        eq($jobs.id, jobId),
+        eq($jobs.status, "failed"),
+        eq($jobs.userId, userId),
+      )
+    : and(eq($jobs.id, jobId), eq($jobs.status, "failed"));
+
+  const reset = await db
+    .update($jobs)
+    .set({
+      status: "pending",
+      progress: 0,
+      stepLabel: "Retrying…",
+      error: null,
+      updatedAt: new Date(),
+    })
+    .where(conditions)
+    .returning({ id: $jobs.id });
+
+  return reset.length > 0;
+}
+
+/**
+ * Retry a failed job: reset → process.
+ */
+export async function retryAnalysisJob(jobId: string, userId: string) {
+  const rows = await db
+    .select()
+    .from($jobs)
+    .where(and(eq($jobs.id, jobId), eq($jobs.userId, userId)))
+    .limit(1);
+
+  const job = rows[0];
+  if (!job) {
+    throw new Error("Job not found");
+  }
+
+  if (job.status === "completed") {
+    return { chatId: job.chatId, alreadyDone: true as const };
+  }
+
+  if (
+    job.status === "fetching" ||
+    job.status === "labeling" ||
+    job.status === "indexing"
+  ) {
+    return { chatId: job.chatId, alreadyRunning: true as const };
+  }
+
+  if (job.status === "failed") {
+    const ok = await resetFailedJob(jobId, userId);
+    if (!ok) {
+      throw new Error("Could not reset failed job");
+    }
+  }
+
+  // pending (including just-reset) → process
+  return processAnalysisJob(jobId);
+}
+
+/**
  * Run a full analysis pipeline for a job row.
  * Safe to call from a route handler; updates DB progress as it goes.
  */
@@ -74,8 +140,11 @@ export async function processAnalysisJob(jobId: string) {
   }
 
   if (job.status === "failed") {
-    // Allow manual re-run of failed jobs by resetting to pending first if desired.
-    return { chatId: job.chatId, alreadyDone: false as const, failed: true as const };
+    return {
+      chatId: job.chatId,
+      alreadyDone: false as const,
+      failed: true as const,
+    };
   }
 
   if (
@@ -91,7 +160,6 @@ export async function processAnalysisJob(jobId: string) {
     return { chatId: job.chatId, alreadyRunning: true as const };
   }
 
-  // Re-read after claim
   const fresh = await db.select().from($jobs).where(eq($jobs.id, jobId)).limit(1);
   const current = fresh[0]!;
 
@@ -187,4 +255,21 @@ export async function createAnalysisJob(params: {
   });
 
   return id;
+}
+
+export async function listFailedJobs(userId: string, limit = 10) {
+  return db
+    .select({
+      id: $jobs.id,
+      videoInput: $jobs.videoInput,
+      videoId: $jobs.videoId,
+      error: $jobs.error,
+      stepLabel: $jobs.stepLabel,
+      createdAt: $jobs.createdAt,
+      updatedAt: $jobs.updatedAt,
+    })
+    .from($jobs)
+    .where(and(eq($jobs.userId, userId), eq($jobs.status, "failed")))
+    .orderBy($jobs.updatedAt)
+    .limit(limit);
 }
