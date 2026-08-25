@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { draftCommunityPost } from "../_actions/draft-reply";
+import { Button } from "@/components/ui/button";
 
 type Stats = {
   total: number;
@@ -22,6 +24,7 @@ type SampleComment = {
 };
 
 type Props = {
+  chatId: string;
   stats: Stats;
   summary: string | null;
   samples: SampleComment[];
@@ -40,24 +43,52 @@ function overallColor(stats: NonNullable<Stats>) {
   return "text-amber-700";
 }
 
-const InsightsDashboard = ({ stats, summary, samples, videoId }: Props) => {
+const InsightsDashboard = ({
+  chatId,
+  stats,
+  summary,
+  samples,
+  videoId,
+}: Props) => {
   const [expanded, setExpanded] = useState(false);
+  const [postLoading, setPostLoading] = useState(false);
+  const [communityPost, setCommunityPost] = useState<string | null>(null);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [postCopied, setPostCopied] = useState(false);
 
   const topPositive = useMemo(
-    () =>
-      samples
-        .filter((c) => c.sentimentLabel === "positive")
-        .slice(0, 2),
+    () => samples.filter((c) => c.sentimentLabel === "positive").slice(0, 2),
     [samples],
   );
 
   const topNegative = useMemo(
-    () =>
-      samples
-        .filter((c) => c.sentimentLabel === "negative")
-        .slice(0, 2),
+    () => samples.filter((c) => c.sentimentLabel === "negative").slice(0, 2),
     [samples],
   );
+
+  const handleCommunityPost = async () => {
+    setPostLoading(true);
+    setPostError(null);
+    const result = await draftCommunityPost({ chatId, tone: "friendly" });
+    setPostLoading(false);
+
+    if (result.error || !result.post) {
+      setPostError(result.error ?? "Failed to draft post");
+      return;
+    }
+    setCommunityPost(result.post);
+  };
+
+  const copyPost = async () => {
+    if (!communityPost) return;
+    try {
+      await navigator.clipboard.writeText(communityPost);
+      setPostCopied(true);
+      setTimeout(() => setPostCopied(false), 1500);
+    } catch {
+      setPostError("Could not copy");
+    }
+  };
 
   if (!stats || stats.total === 0) {
     return (
@@ -99,7 +130,7 @@ const InsightsDashboard = ({ stats, summary, samples, videoId }: Props) => {
   return (
     <div className="border-b bg-white shrink-0">
       <div className="px-4 pt-4 pb-3 space-y-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Insights
@@ -108,15 +139,33 @@ const InsightsDashboard = ({ stats, summary, samples, videoId }: Props) => {
               {overallLabel(stats)}
             </p>
           </div>
-          {summary && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="text-xs font-medium text-indigo-600 hover:underline shrink-0"
-            >
-              {expanded ? "Hide brief" : "Show full brief"}
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {summary && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                disabled={postLoading}
+                onClick={handleCommunityPost}
+              >
+                {postLoading
+                  ? "Drafting…"
+                  : communityPost
+                    ? "Regenerate post"
+                    : "Draft pinned post"}
+              </Button>
+            )}
+            {summary && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="text-xs font-medium text-indigo-600 hover:underline"
+              >
+                {expanded ? "Hide brief" : "Show full brief"}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -208,6 +257,28 @@ const InsightsDashboard = ({ stats, summary, samples, videoId }: Props) => {
                 </ul>
               </div>
             )}
+          </div>
+        )}
+
+        {postError && <p className="text-xs text-red-500">{postError}</p>}
+
+        {communityPost && (
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                Pinned / community post draft
+              </p>
+              <button
+                type="button"
+                className="text-[11px] text-indigo-600 hover:underline"
+                onClick={copyPost}
+              >
+                {postCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed text-slate-800">
+              {communityPost}
+            </p>
           </div>
         )}
 
