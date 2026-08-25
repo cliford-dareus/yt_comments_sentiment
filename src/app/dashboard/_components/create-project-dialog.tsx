@@ -30,6 +30,7 @@ const CreateProjectDialog = () => {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [lastJobId, setLastJobId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearPoll = () => {
@@ -62,6 +63,7 @@ const CreateProjectDialog = () => {
           setStatus("Redirecting…");
           setProgress(100);
           router.push(`/chat/${job.chatId}`);
+          router.refresh();
           return;
         }
 
@@ -74,6 +76,20 @@ const CreateProjectDialog = () => {
         console.error("poll error", err);
       }
     }, 1000);
+  };
+
+  const startJobRun = async (jobId: string) => {
+    setLastJobId(jobId);
+    setError(null);
+    setLoading(true);
+    setProgress(0);
+    setStatus("Queued…");
+
+    void fetch(`/api/jobs/${jobId}/run`, { method: "POST" }).catch((err) =>
+      console.error("run trigger failed", err),
+    );
+
+    pollJob(jobId);
   };
 
   const postComments = async (data: z.infer<typeof UploadSchema>) => {
@@ -97,20 +113,50 @@ const CreateProjectDialog = () => {
         return;
       }
 
-      const jobId = startData.jobId as string;
-
-      // Ensure processing runs even if the fire-and-forget on start was cut short
-      void fetch(`/api/jobs/${jobId}/run`, { method: "POST" }).catch(
-        (err) => console.error("run trigger failed", err),
-      );
-
-      setStatus("Queued…");
-      pollJob(jobId);
+      await startJobRun(startData.jobId as string);
     } catch (err) {
       console.error("Error creating project:", err);
       setError("Something went wrong. Please try again.");
       setLoading(false);
       clearPoll();
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!lastJobId) return;
+
+    setError(null);
+    setLoading(true);
+    setProgress(0);
+    setStatus("Retrying…");
+
+    try {
+      const res = await fetch(`/api/jobs/${lastJobId}/retry`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error ?? "Retry failed");
+        setLoading(false);
+        return;
+      }
+
+      if (data.alreadyDone && data.chatId) {
+        router.push(`/chat/${data.chatId}`);
+        return;
+      }
+
+      // Also nudge /run in case background void was dropped
+      void fetch(`/api/jobs/${lastJobId}/run`, { method: "POST" }).catch(
+        () => {},
+      );
+
+      pollJob(lastJobId);
+    } catch (err) {
+      console.error("retry error", err);
+      setError("Retry failed. Please try again.");
+      setLoading(false);
     }
   };
 
@@ -122,7 +168,7 @@ const CreateProjectDialog = () => {
           setLoading(false);
           setStatus("");
           setProgress(0);
-          setError(null);
+          // Keep lastJobId + error so user can reopen and retry
         }
       }}
     >
@@ -152,13 +198,29 @@ const CreateProjectDialog = () => {
               </div>
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              You can leave this open — we'll redirect when insights are ready.
+              You can leave this open — we'll redirect when insights are
+              ready.
             </p>
           </div>
         ) : (
           <>
             <YtUploadForm postComments={postComments} />
-            {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
+            {error && (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm text-red-500">{error}</p>
+                {lastJobId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={handleRetry}
+                  >
+                    Retry analysis
+                  </Button>
+                )}
+              </div>
+            )}
           </>
         )}
       </DialogContent>
