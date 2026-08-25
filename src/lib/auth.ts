@@ -7,18 +7,27 @@ import { eq } from "drizzle-orm";
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      authorization: {
+        params: {
+          prompt: "select_account",
+          access_type: "online",
+          response_type: "code",
+        },
+      },
     }),
   ],
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/auth",
+    error: "/auth",
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, profile }) {
       if (!user.email) return false;
 
       try {
@@ -36,7 +45,6 @@ export const authOptions: NextAuthOptions = {
             picture: user.image ?? "",
           });
         } else {
-          // Keep profile fields reasonably up to date
           await db
             .update($user)
             .set({
@@ -53,47 +61,75 @@ export const authOptions: NextAuthOptions = {
       }
     },
 
-    async jwt({ token, user }) {
-      // On first sign-in, resolve our internal user id from the DB
-      if (user?.email) {
-        const rows = await db
-          .select({ id: $user.id })
-          .from($user)
-          .where(eq($user.email, user.email))
-          .limit(1);
+    async jwt({ token, user, trigger }) {
+      // First sign-in or missing userId — resolve from DB
+      if (user?.email || (token.email && !token.userId) || trigger === "update") {
+        const email = user?.email ?? (token.email as string | undefined);
+        if (email) {
+          const rows = await db
+            .select({ id: $user.id })
+            .from($user)
+            .where(eq($user.email, email))
+            .limit(1);
 
-        if (rows[0]) {
-          token.userId = rows[0].id;
+          if (rows[0]) {
+            token.userId = rows[0].id;
+          }
         }
+      }
+
+      if (user?.name) token.name = user.name;
+      if (user?.picture || user?.image) {
+        token.picture = (user as { image?: string }).image ?? token.picture;
       }
 
       return token;
     },
 
     async session({ session, token }) {
-      if (session.user && token.userId) {
-        (session.user as { id?: string }).id = token.userId as string;
+      if (session.user) {
+        session.user.id = (token.userId as string | undefined) ?? "";
+        if (token.name) session.user.name = token.name as string;
+        if (token.picture) session.user.image = token.picture as string;
       }
       return session;
     },
+
+    async redirect({ url, baseUrl }) {
+      // Relative callback
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Same origin
+      try {
+        if (new URL(url).origin === baseUrl) return url;
+      } catch {
+        // ignore
+      }
+      return `${baseUrl}/dashboard`;
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
+};
+
+export type AppUser = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  picture: string | null;
 };
 
 /**
- * Drop-in replacement for the old Lucia getUser().
- * Returns the same shape: { id, email, fullName, picture } | null
+ * Session user for the app. Returns null if unauthenticated.
  */
-export async function getUser() {
+export async function getUser(): Promise<AppUser | null> {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
     return null;
   }
 
-  const userId = (session.user as { id?: string }).id;
+  const userId = session.user.id;
 
-  // Prefer DB row so we always return the canonical id + fields
   const rows = await db
     .select({
       id: $user.id,
@@ -102,22 +138,26 @@ export async function getUser() {
       picture: $user.picture,
     })
     .from($user)
-    .where(
-      userId
-        ? eq($user.id, userId)
-        : eq($user.email, session.user.email),
-    )
+    .where(userId ? eq($user.id, userId) : eq($user.email, session.user.email))
     .limit(1);
 
   if (rows[0]) {
     return rows[0];
   }
 
-  // Fallback from session if DB lookup fails
   return {
     id: userId ?? "",
     email: session.user.email,
     fullName: session.user.name ?? "",
     picture: session.user.image ?? "",
   };
+}
+
+/** Throws redirect-friendly null; use when page already redirects on null. */
+export async function requireUser(): Promise<AppUser> {
+  const user = await getUser();
+  if (!user?.id) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return user;
 }
