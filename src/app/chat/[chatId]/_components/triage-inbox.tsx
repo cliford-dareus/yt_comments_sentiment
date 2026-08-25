@@ -8,7 +8,7 @@ import {
   type ReplyTone,
 } from "../_actions/draft-reply";
 import { updateTriageStatusAction } from "../_actions/triage-actions";
-import { THEME_CATALOG } from "@/lib/themes-and-triage";
+import { THEME_CATALOG } from "@/lib/theme-catalog";
 import { useRouter } from "next/navigation";
 
 export type TriageItem = {
