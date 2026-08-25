@@ -3,10 +3,7 @@ import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import {
-  processAnalysisJob,
-  resetFailedJob,
-} from "@/lib/analysis-job";
+import { processAnalysisJob, resetJobForRetry } from "@/lib/analysis-job";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -47,34 +44,21 @@ export async function POST(
       });
     }
 
-    if (
-      job.status === "fetching" ||
-      job.status === "labeling" ||
-      job.status === "indexing"
-    ) {
+    // Force-reset failed OR stuck in-flight (labeling @ 45%) jobs
+    const reset = await resetJobForRetry(jobId, user.id);
+    if (!reset) {
       return NextResponse.json(
-        { error: "Job is already running", jobId },
+        { error: "Could not reset job" },
         { status: 409 },
       );
     }
 
-    if (job.status === "failed") {
-      const ok = await resetFailedJob(jobId, user.id);
-      if (!ok) {
-        return NextResponse.json(
-          { error: "Could not reset failed job" },
-          { status: 409 },
-        );
-      }
-    }
-
-    // pending (or just-reset failed) — process in background so client can poll
     void processAnalysisJob(jobId).catch((err) => {
       console.error("retry process error:", err);
     });
 
     return NextResponse.json(
-      { ok: true, jobId, status: "pending" },
+      { ok: true, jobId, status: "pending", resumedChatId: reset.chatId },
       { status: 202 },
     );
   } catch (error) {
