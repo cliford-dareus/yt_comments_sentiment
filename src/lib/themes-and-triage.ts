@@ -1,29 +1,10 @@
 import { db } from "@/lib/db";
 import { $comments, $themeClusters } from "@/lib/db/schema";
-import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { generateText, withRetry } from "@/lib/gemini";
+import { THEME_CATALOG } from "@/lib/theme-catalog";
 
-/** Canonical theme keys the model should prefer. */
-export const THEME_CATALOG: Record<
-  string,
-  { label: string; polarity: "negative" | "positive" | "mixed" }
-> = {
-  audio: { label: "Audio / mic quality", polarity: "negative" },
-  video_quality: { label: "Video / visuals", polarity: "negative" },
-  pacing: { label: "Pacing / length", polarity: "negative" },
-  thumbnail_title: { label: "Thumbnail / title mismatch", polarity: "negative" },
-  sponsorship: { label: "Sponsorship / ads", polarity: "negative" },
-  accuracy: { label: "Facts / accuracy", polarity: "negative" },
-  tone_attitude: { label: "Tone / attitude", polarity: "negative" },
-  editing: { label: "Editing / production", polarity: "negative" },
-  accessibility: { label: "Captions / accessibility", polarity: "negative" },
-  controversy: { label: "Controversy / drama", polarity: "negative" },
-  question: { label: "Genuine question", polarity: "mixed" },
-  praise_content: { label: "Praise — content", polarity: "positive" },
-  praise_style: { label: "Praise — style / personality", polarity: "positive" },
-  request: { label: "Content request", polarity: "mixed" },
-  other: { label: "Other", polarity: "mixed" },
-};
+export { THEME_CATALOG };
 
 const BATCH = 25;
 
@@ -52,7 +33,6 @@ function normalizeThemeKey(raw: unknown): string {
     .replace(/\s+/g, "_")
     .replace(/[^a-z0-9_]/g, "");
   if (THEME_CATALOG[key]) return key;
-  // fuzzy map common variants
   if (/audio|mic|sound|volume/.test(key)) return "audio";
   if (/video|visual|camera|resolution/.test(key)) return "video_quality";
   if (/pace|length|long|short|drag/.test(key)) return "pacing";
@@ -69,10 +49,6 @@ function normalizeThemeKey(raw: unknown): string {
   return "other";
 }
 
-/**
- * Assign theme_key to comments that need it (negatives + question-like neutrals).
- * Then roll up into theme_clusters.
- */
 export async function buildThemeClustersForChat(chatId: string) {
   const rows = await db
     .select({
@@ -85,19 +61,19 @@ export async function buildThemeClustersForChat(chatId: string) {
     .from($comments)
     .where(eq($comments.chatId, chatId));
 
-  // Cluster negatives always; neutrals that look like questions/requests
   const candidates = rows.filter((r) => {
     if (r.themeKey) return false;
     if (r.label === "negative") return true;
-    if (r.label === "neutral" && /\?|please|can you|could you|how do|why did/i.test(r.text)) {
+    if (
+      r.label === "neutral" &&
+      /\?|please|can you|could you|how do|why did/i.test(r.text)
+    ) {
       return true;
     }
-    // High-like positives for praise themes (sample)
     if (r.label === "positive" && (r.likes ?? 0) >= 5) return true;
     return false;
   });
 
-  // Cap work for Gemini cost
   const toCluster = candidates
     .sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
     .slice(0, 120);
@@ -159,7 +135,6 @@ ${JSON.stringify(payload)}`,
     }
   }
 
-  // Reload with themes for aggregation
   const themed = await db
     .select({
       id: $comments.id,
@@ -169,9 +144,7 @@ ${JSON.stringify(payload)}`,
       label: $comments.sentimentLabel,
     })
     .from($comments)
-    .where(
-      and(eq($comments.chatId, chatId), isNotNull($comments.themeKey)),
-    );
+    .where(and(eq($comments.chatId, chatId), isNotNull($comments.themeKey)));
 
   const byTheme = new Map<
     string,
@@ -234,10 +207,6 @@ function looksLikeQuestion(text: string) {
   );
 }
 
-/**
- * Build a prioritized triage inbox on comments.
- * Priority score favors: negative + likes, unanswered questions, high engagement.
- */
 export async function buildTriageInbox(chatId: string) {
   const rows = await db
     .select({
@@ -255,7 +224,6 @@ export async function buildTriageInbox(chatId: string) {
   let queued = 0;
 
   for (const r of rows) {
-    // Don't overwrite done/skipped
     if (r.triageStatus === "done" || r.triageStatus === "skipped") {
       continue;
     }
@@ -284,7 +252,6 @@ export async function buildTriageInbox(chatId: string) {
       priority = 35;
       reason = "Superfan / high-engagement praise — good to thank";
     } else {
-      // Leave out of inbox
       if (!r.triageStatus) {
         await db
           .update($comments)
@@ -298,7 +265,6 @@ export async function buildTriageInbox(chatId: string) {
       continue;
     }
 
-    // Theme boost for fixable production issues
     if (
       r.themeKey &&
       ["audio", "video_quality", "pacing", "thumbnail_title", "editing"].includes(
@@ -326,7 +292,6 @@ export async function buildTriageInbox(chatId: string) {
   return { queued };
 }
 
-/** Run both after sentiment labeling. */
 export async function enrichThemesAndTriage(chatId: string) {
   const themes = await buildThemeClustersForChat(chatId);
   const triage = await buildTriageInbox(chatId);
@@ -365,9 +330,7 @@ export async function getTriageInbox(
       and(
         eq($comments.chatId, chatId),
         isNotNull($comments.triageStatus),
-        status === "all"
-          ? sql`true`
-          : eq($comments.triageStatus, status),
+        status === "all" ? sql`true` : eq($comments.triageStatus, status),
       ),
     )
     .orderBy(desc($comments.triagePriority));
