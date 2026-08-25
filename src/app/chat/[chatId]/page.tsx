@@ -43,7 +43,6 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
 
   const sentiment = sentimentRows[0] ?? null;
 
-  // Already ordered by likes desc — good samples for the dashboard
   const samples = comments.slice(0, 40).map((c) => ({
     id: c.id,
     text: c.text,
@@ -61,6 +60,7 @@ const Chat = async ({ params }: { params: { chatId: string } }) => {
 
         <div className="flex-[5] border-x border-l-slate-200 overflow-hidden flex flex-col min-w-0">
           <InsightsDashboard
+            chatId={chat[0].id}
             stats={stats}
             summary={sentiment?.content ?? null}
             samples={samples}
