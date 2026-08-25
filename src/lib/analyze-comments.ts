@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/lib/db";
 import { $comments, $sentiment } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { computeHealthScore } from "@/lib/health-score";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
@@ -24,9 +25,6 @@ function parseJsonFromModel(text: string): unknown {
   return JSON.parse(cleaned);
 }
 
-/**
- * Label a batch of comments with Gemini. Returns id -> label/score.
- */
 async function labelBatch(
   items: { id: string; text: string }[],
 ): Promise<LabeledItem[]> {
@@ -91,9 +89,6 @@ ${JSON.stringify(payload)}`;
   );
 }
 
-/**
- * Load unlabeled comments for a chat, label in batches, write back to DB.
- */
 export async function labelCommentsForChat(chatId: string) {
   const rows = await db
     .select({
@@ -117,7 +112,6 @@ export async function labelCommentsForChat(chatId: string) {
       batch.map((b) => ({ id: b.id, text: b.text })),
     );
 
-    // Update each row (drizzle lacks great bulk update-by-case here)
     await Promise.all(
       results.map((r) =>
         db
@@ -136,9 +130,6 @@ export async function labelCommentsForChat(chatId: string) {
   return { labeled: labeledCount, total: rows.length };
 }
 
-/**
- * Build a short narrative summary from labeled comments and store on $sentiment.
- */
 export async function buildOverallSummary(chatId: string) {
   const rows = await db
     .select({
@@ -163,7 +154,6 @@ export async function buildOverallSummary(chatId: string) {
   const total = rows.length;
   const pct = (n: number) => Math.round((n / total) * 100);
 
-  // Sample a few of each for the model
   const sample = (label: Label, n: number) =>
     rows
       .filter((r) => r.label === label)
@@ -204,7 +194,6 @@ Keep it under 250 words. No invented quotes.`;
   const result = await model.generateContent(prompt);
   const analysis = result.response.text();
 
-  // Replace any prior summary for this chat
   const existing = await db
     .select({ id: $sentiment.id })
     .from($sentiment)
@@ -214,10 +203,12 @@ Keep it under 250 words. No invented quotes.`;
     await db
       .update($sentiment)
       .set({ content: analysis })
-      .where(inArray(
-        $sentiment.id,
-        existing.map((e) => e.id),
-      ));
+      .where(
+        inArray(
+          $sentiment.id,
+          existing.map((e) => e.id),
+        ),
+      );
   } else {
     await db.insert($sentiment).values({
       id: crypto.randomUUID(),
@@ -244,27 +235,63 @@ export async function getCommentStats(chatId: string) {
   const rows = await db
     .select({
       label: $comments.sentimentLabel,
+      likes: $comments.likeCount,
     })
     .from($comments)
     .where(eq($comments.chatId, chatId));
 
-  const counts = { positive: 0, negative: 0, neutral: 0, unlabeled: 0 };
+  const counts = {
+    positive: 0,
+    negative: 0,
+    neutral: 0,
+    unlabeled: 0,
+    positiveLikes: 0,
+    negativeLikes: 0,
+    neutralLikes: 0,
+  };
+
   for (const r of rows) {
-    if (r.label === "positive") counts.positive++;
-    else if (r.label === "negative") counts.negative++;
-    else if (r.label === "neutral") counts.neutral++;
-    else counts.unlabeled++;
+    const likes = r.likes ?? 0;
+    if (r.label === "positive") {
+      counts.positive++;
+      counts.positiveLikes += likes;
+    } else if (r.label === "negative") {
+      counts.negative++;
+      counts.negativeLikes += likes;
+    } else if (r.label === "neutral") {
+      counts.neutral++;
+      counts.neutralLikes += likes;
+    } else {
+      counts.unlabeled++;
+    }
   }
 
   const total = rows.length;
   const labeled = total - counts.unlabeled;
   const pct = (n: number) => (labeled ? Math.round((n / labeled) * 100) : 0);
 
+  const health = computeHealthScore({
+    positive: counts.positive,
+    negative: counts.negative,
+    neutral: counts.neutral,
+    unlabeled: counts.unlabeled,
+    positiveLikes: counts.positiveLikes,
+    negativeLikes: counts.negativeLikes,
+    neutralLikes: counts.neutralLikes,
+  });
+
   return {
     total,
-    ...counts,
+    positive: counts.positive,
+    negative: counts.negative,
+    neutral: counts.neutral,
+    unlabeled: counts.unlabeled,
     positivePct: pct(counts.positive),
     negativePct: pct(counts.negative),
     neutralPct: pct(counts.neutral),
+    positiveLikes: counts.positiveLikes,
+    negativeLikes: counts.negativeLikes,
+    neutralLikes: counts.neutralLikes,
+    health,
   };
 }
