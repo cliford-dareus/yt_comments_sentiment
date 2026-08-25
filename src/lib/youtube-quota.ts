@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $youtubeQuota } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 /** Default daily budget under the usual 10k unit ceiling. */
 const DEFAULT_DAILY_LIMIT = Number(
@@ -53,7 +53,7 @@ export async function recordQuotaUsage(units: number) {
     await db
       .update($youtubeQuota)
       .set({
-        unitsUsed: sql`${$youtubeQuota.unitsUsed} + ${units}`,
+        unitsUsed: (existing[0].unitsUsed ?? 0) + units,
         updatedAt: new Date(),
       })
       .where(eq($youtubeQuota.day, day));
@@ -81,7 +81,7 @@ export class QuotaExceededError extends Error {
   }
 }
 
-/** Map googleapis / Gaxios errors to a user-facing message. */
+/** Map googleapis / GAxios errors to a user-facing message. */
 export function classifyYoutubeError(error: unknown): {
   message: string;
   code: "quota" | "rate_limit" | "forbidden" | "not_found" | "unknown";
