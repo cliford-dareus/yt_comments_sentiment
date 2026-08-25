@@ -9,6 +9,10 @@ const DEFAULT_DAILY_LIMIT = Number(
 
 /** commentThreads.list costs 1 unit per request. */
 export const COMMENT_THREADS_LIST_COST = 1;
+/** videos.list costs 1 unit per request. */
+export const VIDEOS_LIST_COST = 1;
+/** search.list costs 100 units per request — use sparingly. */
+export const SEARCH_LIST_COST = 100;
 
 export function utcDayKey(d = new Date()) {
   return d.toISOString().slice(0, 10);
