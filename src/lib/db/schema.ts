@@ -87,6 +87,8 @@ export const $comments = pgTable("comments", {
   publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
   sentimentLabel: sentimentLabelEnum("sentiment_label"),
   sentimentScore: integer("sentiment_score"),
+  /** Creator-chosen reply draft (editable, persisted). */
+  replyDraft: text("reply_draft"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -100,7 +102,7 @@ export const $jobs = pgTable("analysis_jobs", {
   videoInput: text("video_input").notNull(),
   videoId: text("video_id"),
   status: jobStatusEnum("status").notNull().default("pending"),
-  progress: integer("progress").notNull().default(0), // 0-100
+  progress: integer("progress").notNull().default(0),
   stepLabel: text("step_label").default("Queued"),
   error: text("error"),
   commentCount: integer("comment_count"),
@@ -110,7 +112,7 @@ export const $jobs = pgTable("analysis_jobs", {
 
 /** Daily YouTube Data API unit tracking (approx). */
 export const $youtubeQuota = pgTable("youtube_quota_usage", {
-  day: text("day").primaryKey(), // YYYY-MM-DD UTC
+  day: text("day").primaryKey(),
   unitsUsed: integer("units_used").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
