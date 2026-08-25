@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
-import { retryAnalysisJob } from "@/lib/analysis-job";
+import { db } from "@/lib/db";
+import { $jobs } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
+import {
+  processAnalysisJob,
+  resetFailedJob,
+} from "@/lib/analysis-job";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -19,17 +25,6 @@ export async function POST(
     if (!jobId) {
       return NextResponse.json({ error: "jobId required" }, { status: 400 });
     }
-
-    // Fire processing after a quick ack is nicer for UI polling, but we need
-    // the reset to complete first. Reset+process runs here; client polls GET.
-    // To keep the HTTP response responsive for long runs, process in background
-    // after confirming reset via retryAnalysisJob's first steps…
-    //
-    // Practical approach: reset synchronously, then void process, return 202.
-    const { resetFailedJob } = await import("@/lib/analysis-job");
-    const { db } = await import("@/lib/db");
-    const { $jobs } = await import("@/lib/db/schema");
-    const { and, eq } = await import("drizzle-orm");
 
     const rows = await db
       .select()
@@ -73,18 +68,15 @@ export async function POST(
       }
     }
 
-    // pending (or just reset) — kick off processing
-    void retryAnalysisJob(jobId, user.id).catch((err) => {
-      console.error("retry background error:", err);
-    });
-
-    // Also hit process path if still pending after reset (retryAnalysisJob handles it)
-    const { processAnalysisJob } = await import("@/lib/analysis-job");
+    // pending (or just-reset failed) — process in background so client can poll
     void processAnalysisJob(jobId).catch((err) => {
       console.error("retry process error:", err);
     });
 
-    return NextResponse.json({ ok: true, jobId, status: "pending" }, { status: 202 });
+    return NextResponse.json(
+      { ok: true, jobId, status: "pending" },
+      { status: 202 },
+    );
   } catch (error) {
     console.error("jobs/retry error:", error);
     const message =
