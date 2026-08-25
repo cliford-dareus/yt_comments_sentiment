@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { fetchAndStoreYoutubeComments } from "@/lib/fetch-youtube-comments";
 import {
   labelCommentsForChat,
@@ -119,13 +119,11 @@ export async function retryAnalysisJob(jobId: string, userId: string) {
     }
   }
 
-  // pending (including just-reset) → process
   return processAnalysisJob(jobId);
 }
 
 /**
  * Run a full analysis pipeline for a job row.
- * Safe to call from a route handler; updates DB progress as it goes.
  */
 export async function processAnalysisJob(jobId: string) {
   const rows = await db.select().from($jobs).where(eq($jobs.id, jobId)).limit(1);
@@ -270,6 +268,6 @@ export async function listFailedJobs(userId: string, limit = 10) {
     })
     .from($jobs)
     .where(and(eq($jobs.userId, userId), eq($jobs.status, "failed")))
-    .orderBy($jobs.updatedAt)
+    .orderBy(desc($jobs.updatedAt))
     .limit(limit);
 }
