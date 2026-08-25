@@ -11,57 +11,106 @@ import {
 } from "@/components/ui/dialog";
 import YtUploadForm, { UploadSchema } from "./upload-form";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import uploadYtToSupabase from "../_actions/get-comments";
-import loadSupabaseToPinecone from "@/lib/pinecone";
-import { getSentimentToChat } from "../_actions/get-sentiment-to-chat";
+
+type JobSnapshot = {
+  id: string;
+  status: string;
+  progress: number;
+  stepLabel: string | null;
+  error: string | null;
+  chatId: string | null;
+  commentCount: number | null;
+};
 
 const CreateProjectDialog = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearPoll = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  useEffect(() => () => clearPoll(), []);
+
+  const pollJob = (jobId: string) => {
+    clearPoll();
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.job) {
+          return;
+        }
+
+        const job = data.job as JobSnapshot;
+        setProgress(job.progress ?? 0);
+        setStatus(job.stepLabel ?? job.status);
+
+        if (job.status === "completed" && job.chatId) {
+          clearPoll();
+          setStatus("Redirecting…");
+          setProgress(100);
+          router.push(`/chat/${job.chatId}`);
+          return;
+        }
+
+        if (job.status === "failed") {
+          clearPoll();
+          setLoading(false);
+          setError(job.error ?? "Analysis failed");
+        }
+      } catch (err) {
+        console.error("poll error", err);
+      }
+    }, 1000);
+  };
 
   const postComments = async (data: z.infer<typeof UploadSchema>) => {
     setError(null);
     setLoading(true);
+    setProgress(0);
+    setStatus("Starting analysis…");
 
     try {
-      setStatus("Fetching comments from YouTube...");
-      const comments = await uploadYtToSupabase({ videoId: data.videoId });
+      const startRes = await fetch("/api/jobs/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: data.videoId }),
+      });
 
-      if (!comments || comments.error || !comments.chatId) {
-        setError(
-          comments?.error ??
-            "Failed to fetch comments. Please check the URL and try again.",
-        );
+      const startData = await startRes.json();
+
+      if (!startRes.ok || !startData.jobId) {
+        setError(startData?.error ?? "Could not start analysis");
         setLoading(false);
         return;
       }
 
-      setStatus("Labeling comments & building insights...");
-      const sentimentResult = await getSentimentToChat({
-        file_name: comments.file_name,
-        chatId: comments.chatId,
-      });
+      const jobId = startData.jobId as string;
 
-      if (sentimentResult?.error) {
-        console.warn("Sentiment step failed:", sentimentResult.error);
-        // Non-blocking – still proceed to chat
-      }
+      // Ensure processing runs even if the fire-and-forget on start was cut short
+      void fetch(`/api/jobs/${jobId}/run`, { method: "POST" }).catch(
+        (err) => console.error("run trigger failed", err),
+      );
 
-      if (comments.file_name) {
-        setStatus("Building search index...");
-        await loadSupabaseToPinecone(comments.file_name);
-      }
-
-      setStatus("Redirecting...");
-      router.push(`/chat/${comments.chatId}`);
+      setStatus("Queued…");
+      pollJob(jobId);
     } catch (err) {
       console.error("Error creating project:", err);
       setError("Something went wrong. Please try again.");
       setLoading(false);
+      clearPoll();
     }
   };
 
@@ -69,8 +118,10 @@ const CreateProjectDialog = () => {
     <Dialog
       onOpenChange={(open) => {
         if (!open) {
+          clearPoll();
           setLoading(false);
           setStatus("");
+          setProgress(0);
           setError(null);
         }
       }}
@@ -87,10 +138,21 @@ const CreateProjectDialog = () => {
         </DialogHeader>
 
         {loading ? (
-          <div className="py-8 text-center space-y-2">
-            <p className="text-sm text-muted-foreground">{status}</p>
-            <p className="text-xs text-muted-foreground">
-              Labeling can take a bit on videos with many comments.
+          <div className="py-6 space-y-4">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{status || "Working…"}</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 transition-all duration-500 ease-out"
+                  style={{ width: `${Math.max(progress, 3)}%` }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              You can leave this open — we'll redirect when insights are ready.
             </p>
           </div>
         ) : (
