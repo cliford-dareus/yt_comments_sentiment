@@ -5,6 +5,9 @@ import { draftCommunityPost } from "../_actions/draft-reply";
 import { Button } from "@/components/ui/button";
 import type { HealthScoreResult } from "@/lib/health-score";
 import BenchmarkPanel from "./benchmark-panel";
+import ThemeClustersPanel, {
+  type ThemeClusterRow,
+} from "./theme-clusters-panel";
 
 type Stats = {
   total: number;
@@ -32,6 +35,7 @@ type Props = {
   summary: string | null;
   samples: SampleComment[];
   videoId?: string | null;
+  themeClusters?: ThemeClusterRow[];
 };
 
 const colorMap: Record<
@@ -123,6 +127,7 @@ const InsightsDashboard = ({
   summary,
   samples,
   videoId,
+  themeClusters = [],
 }: Props) => {
   const [expanded, setExpanded] = useState(false);
   const [showComponents, setShowComponents] = useState(false);
@@ -291,6 +296,8 @@ const InsightsDashboard = ({
             ))}
           </div>
         )}
+
+        <ThemeClustersPanel chatId={chatId} clusters={themeClusters} />
 
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
