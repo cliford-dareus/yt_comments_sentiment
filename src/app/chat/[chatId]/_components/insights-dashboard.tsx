@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { draftCommunityPost } from "../_actions/draft-reply";
 import { Button } from "@/components/ui/button";
 import type { HealthScoreResult } from "@/lib/health-score";
+import BenchmarkPanel from "./benchmark-panel";
 
 type Stats = {
   total: number;
@@ -234,7 +235,7 @@ const InsightsDashboard = ({
     : [];
 
   return (
-    <div className="border-b bg-white shrink-0">
+    <div className="border-b bg-white shrink-0 max-h-[55vh] overflow-y-auto">
       <div className="px-4 pt-4 pb-3 space-y-3">
         {health && healthStyles && (
           <div
@@ -450,6 +451,8 @@ const InsightsDashboard = ({
             </div>
           </div>
         )}
+
+        <BenchmarkPanel chatId={chatId} videoId={videoId} />
       </div>
     </div>
   );
