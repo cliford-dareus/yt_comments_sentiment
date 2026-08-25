@@ -27,6 +27,13 @@ export const jobStatusEnum = pgEnum("job_status", [
   "failed",
 ]);
 
+export const triageStatusEnum = pgEnum("triage_status", [
+  "open",
+  "drafted",
+  "done",
+  "skipped",
+]);
+
 export const $user = pgTable("user", {
   id: text("id").primaryKey(),
   fullName: text("full_name"),
@@ -86,6 +93,27 @@ export const $comments = pgTable("comments", {
   sentimentLabel: sentimentLabelEnum("sentiment_label"),
   sentimentScore: integer("sentiment_score"),
   replyDraft: text("reply_draft"),
+  /** Theme cluster key (e.g. audio, pacing, sponsorship). */
+  themeKey: text("theme_key"),
+  triageStatus: triageStatusEnum("triage_status"),
+  triagePriority: integer("triage_priority"),
+  triageReason: text("triage_reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/** Aggregated issue/praise themes for a video project. */
+export const $themeClusters = pgTable("theme_clusters", {
+  id: text("id").primaryKey(),
+  chatId: text("chat_id")
+    .notNull()
+    .references(() => $chats.id),
+  themeKey: text("theme_key").notNull(),
+  label: text("label").notNull(),
+  polarity: text("polarity").default("negative"),
+  commentCount: integer("comment_count").notNull().default(0),
+  likeWeight: integer("like_weight").notNull().default(0),
+  summary: text("summary"),
+  exampleCommentIds: text("example_comment_ids"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -112,7 +140,6 @@ export const $youtubeQuota = pgTable("youtube_quota_usage", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-/** Multi-video channel trend scan. */
 export const $channelScans = pgTable("channel_scans", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -131,7 +158,6 @@ export const $channelScans = pgTable("channel_scans", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-/** Per-video row inside a channel scan. */
 export const $channelScanVideos = pgTable("channel_scan_videos", {
   id: text("id").primaryKey(),
   scanId: text("scan_id")
@@ -158,3 +184,4 @@ export type CommentType = typeof $comments.$inferSelect;
 export type JobType = typeof $jobs.$inferSelect;
 export type ChannelScanType = typeof $channelScans.$inferSelect;
 export type ChannelScanVideoType = typeof $channelScanVideos.$inferSelect;
+export type ThemeClusterType = typeof $themeClusters.$inferSelect;
