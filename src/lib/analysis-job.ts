@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { fetchAndStoreYoutubeComments } from "@/lib/fetch-youtube-comments";
 import {
   labelCommentsForChat,
@@ -54,14 +54,15 @@ async function claimJob(jobId: string) {
   return claimed.length > 0;
 }
 
-export async function resetFailedJob(jobId: string, userId?: string) {
+/** Reset any non-completed job so it can be claimed again. */
+export async function resetJobForRetry(jobId: string, userId?: string) {
   const conditions = userId
     ? and(
         eq($jobs.id, jobId),
-        eq($jobs.status, "failed"),
+        ne($jobs.status, "completed"),
         eq($jobs.userId, userId),
       )
-    : and(eq($jobs.id, jobId), eq($jobs.status, "failed"));
+    : and(eq($jobs.id, jobId), ne($jobs.status, "completed"));
 
   const reset = await db
     .update($jobs)
@@ -73,9 +74,14 @@ export async function resetFailedJob(jobId: string, userId?: string) {
       updatedAt: new Date(),
     })
     .where(conditions)
-    .returning({ id: $jobs.id });
+    .returning({ id: $jobs.id, chatId: $jobs.chatId });
 
-  return reset.length > 0;
+  return reset[0] ?? null;
+}
+
+/** @deprecated use resetJobForRetry */
+export async function resetFailedJob(jobId: string, userId?: string) {
+  return Boolean(await resetJobForRetry(jobId, userId));
 }
 
 export async function retryAnalysisJob(jobId: string, userId: string) {
@@ -94,19 +100,9 @@ export async function retryAnalysisJob(jobId: string, userId: string) {
     return { chatId: job.chatId, alreadyDone: true as const };
   }
 
-  if (
-    job.status === "fetching" ||
-    job.status === "labeling" ||
-    job.status === "indexing"
-  ) {
-    return { chatId: job.chatId, alreadyRunning: true as const };
-  }
-
-  if (job.status === "failed") {
-    const ok = await resetFailedJob(jobId, userId);
-    if (!ok) {
-      throw new Error("Could not reset failed job");
-    }
+  const reset = await resetJobForRetry(jobId, userId);
+  if (!reset) {
+    throw new Error("Could not reset job for retry");
   }
 
   return processAnalysisJob(jobId);
@@ -149,43 +145,64 @@ export async function processAnalysisJob(jobId: string) {
   const current = fresh[0]!;
 
   try {
-    const fetchResult = await fetchAndStoreYoutubeComments({
-      rawVideoInput: current.videoInput,
-      userId: current.userId,
-      onProgress: async ({ pages, comments }) => {
-        const pct = Math.min(40, 5 + pages * 6);
+    let chatId = current.chatId;
+    let videoId = current.videoId;
+    let commentCount = current.commentCount;
+    let fileName: string | null = null;
+
+    // Resume path: chat already created (failed/stuck during labeling)
+    if (chatId) {
+      await updateJob(jobId, {
+        status: "labeling",
+        progress: 45,
+        stepLabel: "Resuming labeling…",
+      });
+    } else {
+      const fetchResult = await fetchAndStoreYoutubeComments({
+        rawVideoInput: current.videoInput,
+        userId: current.userId,
+        onProgress: async ({ pages, comments }) => {
+          const pct = Math.min(40, 5 + pages * 6);
+          await updateJob(jobId, {
+            progress: pct,
+            stepLabel: `Fetched ${comments} comments (page ${pages})…`,
+          });
+        },
+      });
+
+      chatId = fetchResult.chatId;
+      videoId = fetchResult.videoId;
+      commentCount = fetchResult.commentCount;
+      fileName = fetchResult.file_name;
+
+      await updateJob(jobId, {
+        status: "labeling",
+        progress: 45,
+        stepLabel: `Labeling ${commentCount} comments…`,
+        chatId,
+        videoId: videoId ?? undefined,
+        commentCount: commentCount ?? undefined,
+      });
+    }
+
+    await labelCommentsForChat(
+      chatId!,
+      async ({ labeled, total, batchIndex, batchCount }) => {
+        const fraction = total ? labeled / total : 1;
+        const pct = Math.round(45 + fraction * 23);
         await updateJob(jobId, {
-          progress: pct,
-          stepLabel: `Fetched ${comments} comments (page ${pages})…`,
+          progress: Math.min(68, pct),
+          stepLabel: `Labeling comments… batch ${batchIndex}/${batchCount} (${labeled}/${total})`,
         });
       },
-    });
-
-    await updateJob(jobId, {
-      status: "labeling",
-      progress: 45,
-      stepLabel: `Labeling ${fetchResult.commentCount} comments…`,
-      chatId: fetchResult.chatId,
-      videoId: fetchResult.videoId,
-      commentCount: fetchResult.commentCount,
-    });
-
-    await labelCommentsForChat(fetchResult.chatId, async ({ labeled, total, batchIndex, batchCount }) => {
-      // Map labeling into 45–68%
-      const fraction = total ? labeled / total : 1;
-      const pct = Math.round(45 + fraction * 23);
-      await updateJob(jobId, {
-        progress: Math.min(68, pct),
-        stepLabel: `Labeling comments… batch ${batchIndex}/${batchCount} (${labeled}/${total})`,
-      });
-    });
+    );
 
     await updateJob(jobId, {
       progress: 70,
       stepLabel: "Building insights summary…",
     });
 
-    await buildOverallSummary(fetchResult.chatId);
+    await buildOverallSummary(chatId!);
 
     await updateJob(jobId, {
       status: "indexing",
@@ -194,8 +211,18 @@ export async function processAnalysisJob(jobId: string) {
     });
 
     try {
-      if (fetchResult.file_name) {
-        await loadSupabaseToPinecone(fetchResult.file_name);
+      // Prefer file from this run; otherwise look up chat row
+      if (!fileName) {
+        const { $chats } = await import("@/lib/db/schema");
+        const chatRows = await db
+          .select({ fileName: $chats.fileName })
+          .from($chats)
+          .where(eq($chats.id, chatId!))
+          .limit(1);
+        fileName = chatRows[0]?.fileName ?? null;
+      }
+      if (fileName) {
+        await loadSupabaseToPinecone(fileName);
       }
     } catch (indexErr) {
       console.error("Pinecone indexing failed (non-fatal):", indexErr);
@@ -205,13 +232,13 @@ export async function processAnalysisJob(jobId: string) {
       status: "completed",
       progress: 100,
       stepLabel: "Done",
-      chatId: fetchResult.chatId,
-      videoId: fetchResult.videoId,
-      commentCount: fetchResult.commentCount,
+      chatId: chatId!,
+      videoId: videoId ?? undefined,
+      commentCount: commentCount ?? undefined,
       error: null,
     });
 
-    return { chatId: fetchResult.chatId, alreadyDone: false as const };
+    return { chatId: chatId!, alreadyDone: false as const };
   } catch (err) {
     const message =
       err instanceof QuotaExceededError
