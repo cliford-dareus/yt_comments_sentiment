@@ -32,6 +32,10 @@ NEXT_PUBLIC_SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
 PINECONE_API_KEY=
 PINECONE_INDEX_NAME=
+
+# Optional quotas / limits
+YOUTUBE_DAILY_QUOTA_LIMIT=8000   # soft daily unit budget (default 8000 of 10k)
+YOUTUBE_MAX_COMMENTS=500        # max comments per video analysis
 ```
 
 Google OAuth redirect URI: `http://localhost:3000/api/auth/callback/google`
@@ -39,35 +43,39 @@ Google OAuth redirect URI: `http://localhost:3000/api/auth/callback/google`
 ## Features
 
 - Fetch YouTube comments (capped) and store them in **Postgres**
-- **Per-comment sentiment** labels (`positive` / `negative` / `neutral`) via Gemini batches
-- Overall **insights** summary + distribution bar in the sidebar
-- Filterable comments panel (search + sentiment tabs)
-- **Reply assistant**: draft a reply per comment with tone (friendly / professional / playful / apologetic) + copy
+- **Background analysis jobs** with progress bar (fetch → label → index)
+- **YouTube quota tracking** (daily unit budget + clear quota/rate-limit errors)
+- **Per-comment sentiment** labels via Gemini batches
+- Insights dashboard above chat + creator brief
+- Filterable comments panel + **reply assistant**
 - Chat with comment context (RAG via Pinecone still available)
 
 ## Required DB migrations
 
-```sql
--- messages role
-ALTER TYPE "public"."user_system_enum" ADD VALUE IF NOT EXISTS 'assistant';
+Apply in order:
 
--- comments table + enum (or run supabase/migrations/0004_comments_table.sql)
-```
+1. `user_system_enum` + `assistant` value  
+2. `supabase/migrations/0004_comments_table.sql`  
+3. `supabase/migrations/0005_analysis_jobs.sql`  
 
-Apply `supabase/migrations/0004_comments_table.sql` before creating new projects.
+## Jobs API
+
+| Endpoint | Purpose |
+|----------|--------|
+| `POST /api/jobs/start` | Create job `{ videoId }` → `{ jobId }` |
+| `POST /api/jobs/:id/run` | Process job (idempotent claim) |
+| `GET /api/jobs/:id` | Poll status / progress |
 
 ## Recent work (2026-08)
 
 - Auth: Lucia → NextAuth
-- Comments stored in `comments` table (not only CSV)
-- Per-comment labeling + insights sidebar
-- Reply assistant on each comment
-- Chat message persistence, sentiment in system prompt
+- Comments in Postgres + per-comment labels
+- Insights dashboard + reply assistant
+- Background jobs + YouTube quota handling
 
 ## TODO
 
 - [ ] Star / rename projects
 - [ ] Export summary CSV/PDF
-- [ ] Background jobs for large comment sets
 - [ ] Decide long-term Pinecone vs DB-only context
 - [ ] Optional: draft a community-post / pinned comment from insights
