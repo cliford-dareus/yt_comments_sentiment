@@ -1,20 +1,23 @@
+import { config } from 'dotenv';
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 
+
+config({ path: '.env' }); // or .env.local
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not defined");
+    throw new Error("DATABASE_URL is not defined");
 }
 
 let connection: postgres.Sql;
 
 if (process.env.NODE_ENV === "production") {
-  connection = postgres(process.env.DATABASE_URL, { prepare: false });
+    connection = postgres(process.env.DATABASE_URL, { prepare: false, ssl: "require" });
 } else {
-  const globalConnection = global as typeof globalThis & { connection: postgres.Sql };
-  if (!globalConnection.connection) {
-    globalConnection.connection = postgres(process.env.DATABASE_URL, { prepare: false });
-  }
-  connection = globalConnection.connection;
+    const globalConnection = global as typeof globalThis & { connection: postgres.Sql };
+    if (!globalConnection.connection) {
+        globalConnection.connection = postgres(process.env.DATABASE_URL, { prepare: false, ssl: "require" });
+    }
+    connection = globalConnection.connection;
 }
 
 // const client = postgres(process.env.DATABASE_URL);

@@ -28,6 +28,7 @@
     "clsx": "^2.1.1",
     "csv-writer": "^1.6.0",
     "d3-dsv": "^2.0.0",
+    "dotenv": "^18.0.10",
     "drizzle-orm": "^0.32.0",
     "framer-motion": "^11.3.8",
     "googleapis": "^126.0.1",

@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1722038542941,
-      "tag": "0000_silky_praxagora",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1722048201842,
-      "tag": "0001_dazzling_romulus",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1722104046249,
-      "tag": "0002_noisy_miss_america",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1787668627290,
-      "tag": "0003_smooth_warstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1787668898102,
-      "tag": "0004_icy_talisman",
+      "when": 1794519494732,
+      "tag": "0000_gray_squirrel_girl",
       "breakpoints": true
     }
   ]
