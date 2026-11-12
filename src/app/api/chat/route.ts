@@ -1,23 +1,23 @@
 import { getContext } from "@/lib/context";
 import { db } from "@/lib/db";
 import { $chats, $message, $sentiment } from "@/lib/db/schema";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GoogleGenerativeAIStream, Message, StreamingTextResponse } from "ai";
+import { streamChat, streamToResponse, type ChatTurn } from "@/lib/gemini";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
+type IncomingMessage = {
+  role: string;
+  content: string;
+};
 
-const buildGoogleGenAIPrompt = (messages: Message[]) => ({
-  contents: messages
-    .filter(
-      (message) => message.role === "user" || message.role === "assistant",
-    )
-    .map((message) => ({
-      role: message.role === "user" ? "user" : "model",
-      parts: [{ text: message.content }],
-    })),
-});
+function toChatTurns(messages: IncomingMessage[]): ChatTurn[] {
+  return messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({
+      role: m.role === "user" ? ("user" as const) : ("model" as const),
+      text: m.content ?? "",
+    }));
+}
 
 export async function POST(req: Request) {
   try {
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     const file_name = _chats[0].fileName ?? "";
-    const lastMessage = messages[messages.length - 1];
+    const lastMessage = messages[messages.length - 1] as IncomingMessage;
 
     // Persist the latest user message
     if (lastMessage?.role === "user" && lastMessage.content) {
@@ -59,9 +59,9 @@ export async function POST(req: Request) {
     const sentimentSummary = sentimentRows[0]?.content?.trim() ?? "";
 
     // RAG context from comment embeddings
-    const context = await getContext(lastMessage.content, file_name);
+    const context = await getContext(lastMessage.content ?? "", file_name);
 
-    const systemText = `You are a helpful assistant that helps creators understand their YouTube audience through comment analysis.
+    const systemInstruction = `You are a helpful assistant that helps creators understand their YouTube audience through comment analysis.
 
 Traits: expert knowledge, helpful, concise, and actionable. Never invent comments that are not present in the provided context.
 
@@ -73,32 +73,29 @@ Guidelines:
 - If the context does not contain enough information, say so clearly instead of guessing.
 - Keep answers focused and useful for a content creator.`;
 
-    const geminiStream = await genAI
-      .getGenerativeModel({
-        model: "gemini-1.5-flash",
-        systemInstruction: systemText,
-      })
-      .generateContentStream(buildGoogleGenAIPrompt(messages));
+    const turns = toChatTurns(messages as IncomingMessage[]);
 
-    const stream = GoogleGenerativeAIStream(geminiStream, {
-      async onCompletion(completion) {
-        // Persist the full assistant reply once streaming finishes
-        if (completion?.trim()) {
-          try {
-            await db.insert($message).values({
-              id: crypto.randomUUID(),
-              chatId,
-              content: completion,
-              role: "assistant",
-            });
-          } catch (err) {
-            console.error("Failed to save assistant message:", err);
-          }
+    const generator = streamChat({
+      messages: turns,
+      systemInstruction,
+      temperature: 0.3,
+    });
+
+    return streamToResponse(generator, {
+      onComplete: async (completion) => {
+        if (!completion?.trim()) return;
+        try {
+          await db.insert($message).values({
+            id: crypto.randomUUID(),
+            chatId,
+            content: completion,
+            role: "assistant",
+          });
+        } catch (err) {
+          console.error("Failed to save assistant message:", err);
         }
       },
     });
-
-    return new StreamingTextResponse(stream);
   } catch (error) {
     console.error("Chat route error:", error);
     return NextResponse.json(
