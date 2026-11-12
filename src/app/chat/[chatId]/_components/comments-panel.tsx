@@ -6,7 +6,9 @@ import {
   saveReplyDraft,
   type ReplyTone,
 } from "../_actions/draft-reply";
+import { postYoutubeReply } from "../_actions/post-youtube-reply";
 import { Button } from "@/components/ui/button";
+import { signIn } from "next-auth/react";
 
 type Comment = {
   id: string;
@@ -59,6 +61,8 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
   });
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [postingId, setPostingId] = useState<string | null>(null);
+  const [postedId, setPostedId] = useState<string | null>(null);
   const [errorById, setErrorById] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -161,6 +165,37 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
 
     setSavedId(commentId);
     setTimeout(() => setSavedId(null), 1500);
+  };
+
+  const handleReplyOnYoutube = async (commentId: string) => {
+    const text = draftText[commentId]?.trim();
+    if (!text) return;
+
+    setPostingId(commentId);
+    setErrorById((prev) => {
+      const next = { ...prev };
+      delete next[commentId];
+      return next;
+    });
+
+    const result = await postYoutubeReply({
+      chatId,
+      commentId,
+      text,
+    });
+
+    setPostingId(null);
+
+    if (result.error) {
+      setErrorById((prev) => ({
+        ...prev,
+        [commentId]: result.error!,
+      }));
+      return;
+    }
+
+    setPostedId(commentId);
+    setTimeout(() => setPostedId(null), 2500);
   };
 
   return (
@@ -277,7 +312,22 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
               </div>
 
               {errorById[c.id] && (
-                <p className="text-xs text-red-500">{errorById[c.id]}</p>
+                <div className="rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-700 space-y-1">
+                  <p>{errorById[c.id]}</p>
+                  {/sign in|YouTube access|channel owner/i.test(
+                    errorById[c.id],
+                  ) && (
+                    <button
+                      type="button"
+                      className="underline font-medium"
+                      onClick={() =>
+                        signIn("google", { callbackUrl: window.location.href })
+                      }
+                    >
+                      Reconnect Google
+                    </button>
+                  )}
+                </div>
               )}
 
               {(draftText[c.id] || variantsById[c.id]) && (
@@ -338,6 +388,20 @@ const CommentsPanel = ({ chatId, comments }: Props) => {
                       }))
                     }
                   />
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 w-full text-xs bg-zinc-900 text-white hover:bg-zinc-800 sm:w-auto"
+                    disabled={postingId === c.id || !draftText[c.id]?.trim()}
+                    onClick={() => handleReplyOnYoutube(c.id)}
+                  >
+                    {postingId === c.id
+                      ? "Posting on YouTube…"
+                      : postedId === c.id
+                        ? "Posted ✓"
+                        : "Reply on YouTube"}
+                  </Button>
                 </div>
               )}
             </div>
