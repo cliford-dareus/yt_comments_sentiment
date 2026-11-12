@@ -5,11 +5,14 @@ import { AuthGoogleButton } from "./google-button";
 
 const ERROR_MESSAGES: Record<string, string> = {
   Configuration:
-    "Auth is misconfigured (check GOOGLE_CLIENT_ID / SECRET and NEXTAUTH_SECRET).",
-  AccessDenied: "Access was denied. Try another Google account.",
+    "Auth is misconfigured. Check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET, and NEXTAUTH_URL.",
+  AccessDenied:
+    "Sign-in was blocked. Usually this means (1) the Google OAuth app is in Testing mode and your email is not a test user, or (2) the app could not save your account (check DATABASE_URL and that the user table exists). See server logs for signIn callback errors.",
   Verification: "The sign-in link is no longer valid. Try again.",
-  OAuthSignin: "Could not start Google sign-in. Try again.",
-  OAuthCallback: "Google sign-in failed during callback. Try again.",
+  OAuthSignin:
+    "Could not start Google sign-in. Verify GOOGLE_CLIENT_ID / SECRET and the authorized redirect URI.",
+  OAuthCallback:
+    "Google callback failed. Confirm the redirect URI is exactly {origin}/api/auth/callback/google and matches Google Cloud Console.",
   OAuthCreateAccount: "Could not create your account. Try again.",
   EmailCreateAccount: "Could not create your account. Try again.",
   Callback: "Sign-in callback failed. Try again.",
