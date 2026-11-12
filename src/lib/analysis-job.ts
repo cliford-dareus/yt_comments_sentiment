@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
-import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne } from "drizzle-orm";
 import { fetchAndStoreYoutubeComments } from "@/lib/fetch-youtube-comments";
 import {
   labelCommentsForChat,
