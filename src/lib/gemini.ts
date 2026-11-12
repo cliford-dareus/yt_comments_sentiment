@@ -3,13 +3,16 @@ import { GoogleGenAI } from "@google/genai";
 /**
  * Unified Gemini client (@google/genai).
  * Prefer GOOGLE_API_KEY; fall back to GEMINI_API_KEY for AI Studio keys.
+ *
+ * All app Gemini calls should go through this module — do not instantiate
+ * GoogleGenerativeAI / GoogleGenAI elsewhere.
  */
 const apiKey =
   process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "";
 
 export const gemini = new GoogleGenAI({ apiKey });
 
-/** High-volume text tasks (labeling, drafts). Override with GEMINI_MODEL. */
+/** Default model for text tasks (labeling, drafts, chat). Override with GEMINI_MODEL. */
 export const GEMINI_MODEL =
   process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
@@ -21,12 +24,18 @@ export function assertGeminiConfigured() {
   }
 }
 
+export type ChatTurn = {
+  role: "user" | "model";
+  text: string;
+};
+
 export async function generateText(params: {
   prompt: string;
   temperature?: number;
   /** Force JSON object/array in the response body */
   json?: boolean;
   maxOutputTokens?: number;
+  systemInstruction?: string;
 }): Promise<string> {
   assertGeminiConfigured();
 
@@ -36,6 +45,9 @@ export async function generateText(params: {
     config: {
       temperature: params.temperature ?? 0.2,
       maxOutputTokens: params.maxOutputTokens ?? 8192,
+      ...(params.systemInstruction
+        ? { systemInstruction: params.systemInstruction }
+        : {}),
       ...(params.json
         ? { responseMimeType: "application/json" as const }
         : {}),
@@ -47,6 +59,135 @@ export async function generateText(params: {
     throw new Error("Gemini returned an empty response");
   }
   return text;
+}
+
+/**
+ * Multi-turn chat (non-streaming). Converts app messages into the
+ * contents shape expected by @google/genai.
+ */
+export async function generateChat(params: {
+  messages: ChatTurn[];
+  systemInstruction?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}): Promise<string> {
+  assertGeminiConfigured();
+
+  const contents = params.messages
+    .filter((m) => m.text?.trim())
+    .map((m) => ({
+      role: m.role,
+      parts: [{ text: m.text }],
+    }));
+
+  if (!contents.length) {
+    throw new Error("generateChat requires at least one message");
+  }
+
+  const response = await gemini.models.generateContent({
+    model: GEMINI_MODEL,
+    contents,
+    config: {
+      temperature: params.temperature ?? 0.3,
+      maxOutputTokens: params.maxOutputTokens ?? 4096,
+      ...(params.systemInstruction
+        ? { systemInstruction: params.systemInstruction }
+        : {}),
+    },
+  });
+
+  const text = response.text?.trim() ?? "";
+  if (!text) {
+    throw new Error("Gemini returned an empty response");
+  }
+  return text;
+}
+
+/**
+ * Streaming multi-turn chat. Yields text deltas as they arrive.
+ * Replaces the old GoogleGenerativeAIStream helper from the `ai` package.
+ */
+export async function* streamChat(params: {
+  messages: ChatTurn[];
+  systemInstruction?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}): AsyncGenerator<string, void, unknown> {
+  assertGeminiConfigured();
+
+  const contents = params.messages
+    .filter((m) => m.text?.trim())
+    .map((m) => ({
+      role: m.role,
+      parts: [{ text: m.text }],
+    }));
+
+  if (!contents.length) {
+    throw new Error("streamChat requires at least one message");
+  }
+
+  const stream = await gemini.models.generateContentStream({
+    model: GEMINI_MODEL,
+    contents,
+    config: {
+      temperature: params.temperature ?? 0.3,
+      maxOutputTokens: params.maxOutputTokens ?? 4096,
+      ...(params.systemInstruction
+        ? { systemInstruction: params.systemInstruction }
+        : {}),
+    },
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.text;
+    if (text) yield text;
+  }
+}
+
+/**
+ * Turn an async text generator into a ReadableStream of UTF-8 bytes
+ * suitable for a Next.js Response body. Calls onComplete with the
+ * full concatenated text once the stream finishes.
+ */
+export function streamToResponse(
+  generator: AsyncGenerator<string, void, unknown>,
+  opts?: {
+    onComplete?: (fullText: string) => Promise<void> | void;
+    headers?: HeadersInit;
+  },
+): Response {
+  const encoder = new TextEncoder();
+  let full = "";
+
+  const readable = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const delta of generator) {
+          full += delta;
+          controller.enqueue(encoder.encode(delta));
+        }
+        if (opts?.onComplete) {
+          try {
+            await opts.onComplete(full);
+          } catch (err) {
+            console.error("[gemini] onComplete failed:", err);
+          }
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Content-Type-Options": "nosniff",
+      ...opts?.headers,
+    },
+  });
 }
 
 /** Simple retry wrapper for transient Gemini / network errors. */
