@@ -1,94 +1,80 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { House, MessageCircle, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/provider/sidebar-provider";
-import { useRouter } from "next/navigation";
-import { House, MessageCircle } from "lucide-react";
 
-type Props = {
-  text: string;
-  icon: any;
-  path: string;
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  match: (pathname: string) => boolean;
 };
 
-interface sidebarType {
-  id: number;
-  text: string;
-  path: string;
-  icon: JSX.Element;
-}
-
-export const SIDEBARITEMS: sidebarType[] = [
-  { id: 1, text: "Dashboard", path: "/dashboard", icon: <House size={24}/> },
-  { id: 2, text: "Chat", path: "/chat", icon: <MessageCircle size={24}/> },
+const NAV: NavItem[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: House,
+    match: (p) => p === "/dashboard" || p.startsWith("/dashboard/"),
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    href: "/chat",
+    icon: MessageCircle,
+    match: (p) => p === "/chat" || p.startsWith("/chat/"),
+  },
 ];
 
 const SidebarItems = () => {
-  return (
-    <>
-      {SIDEBARITEMS.map((item) => (
-        <SidebarLink
-          key={item.id}
-          text={item.text}
-          path={item.path}
-          icon={item.icon}
-        />
-      ))}
-    </>
-  );
-};
-
-const SidebarLink = ({ text, path, icon }: Props) => {
-  const route = useRouter();
-  const { expanded, active, setActive, alert } = useSidebar();
+  const pathname = usePathname();
+  const { expanded } = useSidebar();
 
   return (
-    <div className="">
-      <li
-        onClick={() => {
-          route.push(`${path.toLowerCase()}`);
-          setActive(text.toLocaleLowerCase());
-        }}
-        className={`
-         relative flex items-center py-2 px-3 my-1
-         font-medium rounded-md cursor-pointer
-         transition-colors group
-         ${
-           active === text.toLocaleLowerCase()
-             ? "bg-gradient-to-tr from-indigo-200 to-indigo-100 text-indigo-800"
-             : "hover:bg-indigo-50 text-gray-600"
-         }
-     `}
-      >
-        {icon}
-        <span
-          className={`overflow-hidden transition-all text-black ${
-            expanded ? "w-52 ml-3" : "w-0"
-          }`}
-        >
-          {text}
-        </span>
-        {alert && (
-          <div
-            className={`absolute right-2 w-2 h-2 rounded bg-indigo-400 ${
-              expanded ? "" : "top-2"
-            }`}
-          />
-        )}
+    <ul className="flex flex-col gap-0.5">
+      {NAV.map((item) => {
+        const active = item.match(pathname);
+        const Icon = item.icon;
 
-        {!expanded && (
-          <div
-            className={`
-           absolute left-full rounded-md px-2 py-1 ml-6
-           bg-indigo-100 text-indigo-800 text-sm
-           invisible opacity-20 -translate-x-3 transition-all
-           group-hover:visible group-hover:opacity-100 group-hover:translate-x-0
-       `}
-          >
-            {text}
-          </div>
-        )}
-      </li>
-    </div>
+        return (
+          <li key={item.id}>
+            <Link
+              href={item.href}
+              title={!expanded ? item.label : undefined}
+              className={cn(
+                "group relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+                expanded ? "justify-start" : "justify-center",
+                active
+                  ? "bg-zinc-100 text-zinc-900"
+                  : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900",
+              )}
+            >
+              <Icon
+                className={cn(
+                  "h-[18px] w-[18px] shrink-0",
+                  active ? "text-zinc-900" : "text-zinc-400 group-hover:text-zinc-700",
+                )}
+                strokeWidth={1.75}
+              />
+              {expanded && <span className="truncate">{item.label}</span>}
+
+              {!expanded && (
+                <span
+                  className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100"
+                >
+                  {item.label}
+                </span>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 };
 
