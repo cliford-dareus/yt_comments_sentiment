@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import { fetchAndStoreYoutubeComments } from "@/lib/fetch-youtube-comments";
 import {
   labelCommentsForChat,
@@ -9,6 +9,7 @@ import {
 import { enrichThemesAndTriage } from "@/lib/themes-and-triage";
 import loadSupabaseToPinecone from "@/lib/pinecone";
 import { QuotaExceededError } from "@/lib/youtube-quota";
+import { stuckCutoff } from "@/lib/job-queue";
 
 type JobStatus =
   | "pending"
@@ -53,6 +54,61 @@ async function claimJob(jobId: string) {
     .returning({ id: $jobs.id });
 
   return claimed.length > 0;
+}
+
+/**
+ * Reclaim jobs stuck in an in-flight status (serverless timeout, crash).
+ * Preserves chatId so labeling can resume without re-fetching comments.
+ */
+export async function reclaimStuckAnalysisJobs(limit = 10) {
+  const cutoff = stuckCutoff();
+  const stuckStatuses = ["fetching", "labeling", "indexing"] as const;
+
+  const stuck = await db
+    .select({ id: $jobs.id })
+    .from($jobs)
+    .where(
+      and(
+        inArray($jobs.status, [...stuckStatuses]),
+        lt($jobs.updatedAt, cutoff),
+      ),
+    )
+    .orderBy(asc($jobs.updatedAt))
+    .limit(limit);
+
+  const reclaimed: string[] = [];
+  for (const row of stuck) {
+    const updated = await db
+      .update($jobs)
+      .set({
+        status: "pending",
+        stepLabel: "Requeued after stall…",
+        error: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq($jobs.id, row.id),
+          inArray($jobs.status, [...stuckStatuses]),
+          lt($jobs.updatedAt, cutoff),
+        ),
+      )
+      .returning({ id: $jobs.id });
+
+    if (updated[0]) reclaimed.push(updated[0].id);
+  }
+
+  return reclaimed;
+}
+
+/** Pending jobs oldest-first (for the worker drain loop). */
+export async function listPendingAnalysisJobs(limit = 3) {
+  return db
+    .select({ id: $jobs.id })
+    .from($jobs)
+    .where(eq($jobs.status, "pending"))
+    .orderBy(asc($jobs.createdAt))
+    .limit(limit);
 }
 
 export async function resetJobForRetry(jobId: string, userId?: string) {
@@ -132,7 +188,21 @@ export async function processAnalysisJob(jobId: string) {
     job.status === "labeling" ||
     job.status === "indexing"
   ) {
-    return { chatId: job.chatId, alreadyRunning: true as const };
+    // Allow reclaim path: if this row is stuck, reset then continue
+    const cutoff = stuckCutoff();
+    if (job.updatedAt && job.updatedAt < cutoff) {
+      await db
+        .update($jobs)
+        .set({
+          status: "pending",
+          stepLabel: "Requeued after stall…",
+          error: null,
+          updatedAt: new Date(),
+        })
+        .where(eq($jobs.id, jobId));
+    } else {
+      return { chatId: job.chatId, alreadyRunning: true as const };
+    }
   }
 
   const gotLock = await claimJob(jobId);
