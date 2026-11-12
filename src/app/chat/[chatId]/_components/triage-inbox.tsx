@@ -7,9 +7,11 @@ import {
   saveReplyDraft,
   type ReplyTone,
 } from "../_actions/draft-reply";
+import { postYoutubeReply } from "../_actions/post-youtube-reply";
 import { updateTriageStatusAction } from "../_actions/triage-actions";
 import { THEME_CATALOG } from "@/lib/theme-catalog";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 export type TriageItem = {
   id: string;
@@ -37,6 +39,9 @@ const TriageInbox = ({ chatId, items: initial }: Props) => {
   const [filter, setFilter] = useState<StatusFilter>("active");
   const [tone, setTone] = useState<ReplyTone>("friendly");
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [postingId, setPostingId] = useState<string | null>(null);
+  const [postedId, setPostedId] = useState<string | null>(null);
+  const [errorById, setErrorById] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const i of initial) {
@@ -66,11 +71,18 @@ const TriageInbox = ({ chatId, items: initial }: Props) => {
 
   const draft = async (id: string) => {
     setLoadingId(id);
+    setErrorById((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     const result = await draftReplyToComment({ chatId, commentId: id, tone });
     setLoadingId(null);
     if (result.variants?.[0]) {
       setDrafts((prev) => ({ ...prev, [id]: result.variants![0] }));
       await setStatus(id, "drafted");
+    } else if (result.error) {
+      setErrorById((prev) => ({ ...prev, [id]: result.error! }));
     }
   };
 
@@ -79,6 +91,38 @@ const TriageInbox = ({ chatId, items: initial }: Props) => {
     if (!text) return;
     await saveReplyDraft({ chatId, commentId: id, draft: text });
     await setStatus(id, "drafted");
+  };
+
+  const replyOnYoutube = async (id: string) => {
+    const text = drafts[id]?.trim();
+    if (!text) return;
+
+    setPostingId(id);
+    setErrorById((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    const result = await postYoutubeReply({
+      chatId,
+      commentId: id,
+      text,
+    });
+
+    setPostingId(null);
+
+    if (result.error) {
+      setErrorById((prev) => ({ ...prev, [id]: result.error! }));
+      return;
+    }
+
+    setPostedId(id);
+    setItems((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, triageStatus: "done" } : x)),
+    );
+    setTimeout(() => setPostedId(null), 2500);
+    router.refresh();
   };
 
   const filters: { key: StatusFilter; label: string }[] = [
@@ -95,7 +139,8 @@ const TriageInbox = ({ chatId, items: initial }: Props) => {
         <div>
           <h2 className="text-lg font-semibold">Triage inbox</h2>
           <p className="text-[11px] text-muted-foreground">
-            High-likes criticism, questions, superfans — not every comment
+            High-likes criticism, questions, superfans — draft then reply in one
+            click
           </p>
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -219,6 +264,25 @@ const TriageInbox = ({ chatId, items: initial }: Props) => {
                   </div>
                 </div>
 
+                {errorById[item.id] && (
+                  <div className="rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-700 space-y-1">
+                    <p>{errorById[item.id]}</p>
+                    {/sign in|YouTube access|channel owner/i.test(
+                      errorById[item.id],
+                    ) && (
+                      <button
+                        type="button"
+                        className="underline font-medium"
+                        onClick={() =>
+                          signIn("google", { callbackUrl: window.location.href })
+                        }
+                      >
+                        Reconnect Google
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {drafts[item.id] != null && (
                   <div className="space-y-1.5">
                     <textarea
@@ -231,7 +295,22 @@ const TriageInbox = ({ chatId, items: initial }: Props) => {
                         }))
                       }
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 text-xs bg-zinc-900 text-white hover:bg-zinc-800"
+                        disabled={
+                          postingId === item.id || !drafts[item.id]?.trim()
+                        }
+                        onClick={() => replyOnYoutube(item.id)}
+                      >
+                        {postingId === item.id
+                          ? "Posting…"
+                          : postedId === item.id
+                            ? "Posted ✓"
+                            : "Reply on YouTube"}
+                      </Button>
                       <button
                         type="button"
                         className="text-[11px] text-indigo-600 hover:underline"
