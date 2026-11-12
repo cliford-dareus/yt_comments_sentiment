@@ -3,11 +3,11 @@ import { getUser } from "@/lib/auth";
 import {
   CHANNEL_SCAN_MAX_VIDEOS,
   createChannelScan,
-  processChannelScan,
 } from "@/lib/channel-scan";
+import { enqueueChannelScan } from "@/lib/job-queue";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
@@ -37,9 +37,7 @@ export async function POST(req: Request) {
       maxVideos,
     });
 
-    void processChannelScan(scanId, maxVideos).catch((err) => {
-      console.error("channel scan background error:", err);
-    });
+    await enqueueChannelScan(scanId, { req });
 
     return NextResponse.json({ scanId }, { status: 202 });
   } catch (error) {
