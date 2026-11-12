@@ -3,8 +3,9 @@ import { $comments, $sentiment } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { computeHealthScore } from "@/lib/health-score";
 import { generateText, withRetry } from "@/lib/gemini";
+import { batchUpdateSentimentLabels } from "@/lib/db/batch-update-comments";
 
-/** Keep batches modest so JSON responses stay reliable under token limits. */
+/** Keep model batches modest so JSON responses stay reliable under token limits. */
 const BATCH_SIZE = 20;
 
 type Label = "positive" | "negative" | "neutral";
@@ -22,7 +23,6 @@ function parseJsonFromModel(text: string): unknown {
     .replace(/```\s*$/i, "")
     .trim();
 
-  // Sometimes the model wraps the array in an object
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -82,7 +82,6 @@ ${JSON.stringify(payload)}`;
     parsed = parseJsonFromModel(raw);
   } catch {
     console.error("Failed to parse sentiment batch JSON:", raw.slice(0, 500));
-    // Soft-fail this batch as neutral so the job can continue
     return items.map((c) => ({
       id: c.id,
       label: "neutral" as Label,
@@ -90,7 +89,6 @@ ${JSON.stringify(payload)}`;
     }));
   }
 
-  // Accept either a bare array or { results: [...] } / { items: [...] }
   let rows: unknown[] = [];
   if (Array.isArray(parsed)) {
     rows = parsed;
@@ -153,16 +151,8 @@ export async function labelCommentsForChat(
       batch.map((b) => ({ id: b.id, text: b.text })),
     );
 
-    // Sequential updates are slower but safer under connection limits
-    for (const r of results) {
-      await db
-        .update($comments)
-        .set({
-          sentimentLabel: r.label,
-          sentimentScore: r.score,
-        })
-        .where(eq($comments.id, r.id));
-    }
+    // One SQL statement per model batch (not N updates)
+    await batchUpdateSentimentLabels(results);
 
     labeledCount += results.length;
 
