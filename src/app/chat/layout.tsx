@@ -1,36 +1,17 @@
 import { getUser } from "@/lib/auth";
-import Sidebar from "@/components/sidebar";
-import SidebarItems from "@/components/sidebar-item";
-import Navigation from "@/components/ds-navigation";
+import AppShell from "@/components/app-shell";
 import { redirect } from "next/navigation";
 
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
-
-export default async function DashboardLayout({
+export default async function ChatLayout({
   children,
-}: DashboardLayoutProps) {
+}: {
+  children: React.ReactNode;
+}) {
   const user = await getUser();
 
   if (!user) {
     return redirect("/auth");
   }
 
-  return (
-    <main className="relative">
-      <div className="w-[60px]" />
-      <Sidebar>
-        <SidebarItems />
-      </Sidebar>
-
-      <div className="w-full h-screen">
-        <Navigation user={user} />
-        <div className="flex h-[calc(100vh-62px)]">
-          <div className="w-[60px] min-w-[60px] text-black" />
-          <div className="flex-1">{children}</div>
-        </div>
-      </div>
-    </main>
-  );
+  return <AppShell user={user}>{children}</AppShell>;
 }
