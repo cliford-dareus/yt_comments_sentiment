@@ -3,13 +3,14 @@ import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { $jobs } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { processAnalysisJob, resetJobForRetry } from "@/lib/analysis-job";
+import { resetJobForRetry } from "@/lib/analysis-job";
+import { enqueueAnalysisJob } from "@/lib/job-queue";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { jobId: string } },
 ) {
   try {
@@ -44,7 +45,6 @@ export async function POST(
       });
     }
 
-    // Force-reset failed OR stuck in-flight (labeling @ 45%) jobs
     const reset = await resetJobForRetry(jobId, user.id);
     if (!reset) {
       return NextResponse.json(
@@ -53,9 +53,7 @@ export async function POST(
       );
     }
 
-    void processAnalysisJob(jobId).catch((err) => {
-      console.error("retry process error:", err);
-    });
+    await enqueueAnalysisJob(jobId, { req });
 
     return NextResponse.json(
       { ok: true, jobId, status: "pending", resumedChatId: reset.chatId },
