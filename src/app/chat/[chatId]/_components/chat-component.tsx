@@ -16,6 +16,9 @@ const ChatComponent = ({ chatId, initialMessages = [] }: Props) => {
       api: "/api/chat",
       body: { chatId },
       initialMessages,
+      // Plain text stream from our unified @google/genai client
+      // (not the AI SDK data-stream protocol).
+      streamProtocol: "text",
     });
 
   const bottomRef = useRef<HTMLDivElement>(null);
