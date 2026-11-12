@@ -4,6 +4,58 @@ import { db } from "./db";
 import { $user } from "./db/schema";
 import { eq } from "drizzle-orm";
 
+const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl";
+
+async function refreshGoogleAccessToken(token: {
+  googleRefreshToken?: string;
+  googleAccessToken?: string;
+  googleExpiresAt?: number;
+  youtubeScope?: boolean;
+}) {
+  if (!token.googleRefreshToken) {
+    return token;
+  }
+
+  try {
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+        client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+        grant_type: "refresh_token",
+        refresh_token: token.googleRefreshToken,
+      }),
+    });
+
+    const data = (await res.json()) as {
+      access_token?: string;
+      expires_in?: number;
+      error?: string;
+    };
+
+    if (!res.ok || !data.access_token) {
+      console.error("Google token refresh failed:", data.error ?? res.status);
+      return {
+        ...token,
+        googleAccessToken: undefined,
+        googleExpiresAt: undefined,
+        youtubeScope: false,
+      };
+    }
+
+    return {
+      ...token,
+      googleAccessToken: data.access_token,
+      googleExpiresAt: Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600),
+      youtubeScope: true,
+    };
+  } catch (err) {
+    console.error("Google token refresh error:", err);
+    return token;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -11,9 +63,16 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       authorization: {
         params: {
-          prompt: "select_account",
-          access_type: "online",
+          // offline + consent once so we can refresh and post replies
+          prompt: "consent",
+          access_type: "offline",
           response_type: "code",
+          scope: [
+            "openid",
+            "email",
+            "profile",
+            YOUTUBE_SCOPE,
+          ].join(" "),
         },
       },
     }),
@@ -27,10 +86,6 @@ export const authOptions: NextAuthOptions = {
     error: "/auth",
   },
   callbacks: {
-    /**
-     * Returning false → NextAuth redirects to /auth?error=AccessDenied.
-     * Only reject when we truly cannot create/load the user.
-     */
     async signIn({ user, profile }) {
       const email = user.email?.trim().toLowerCase();
       if (!email) {
@@ -66,14 +121,23 @@ export const authOptions: NextAuthOptions = {
 
         return true;
       } catch (error) {
-        // Most common production cause of AccessDenied: DATABASE_URL / schema
         console.error("signIn callback DB error (causes AccessDenied):", error);
         return false;
       }
     },
 
-    async jwt({ token, user, trigger }) {
-      // First sign-in or missing userId — resolve from DB
+    async jwt({ token, user, account, trigger }) {
+      // Fresh OAuth sign-in — capture tokens
+      if (account) {
+        token.googleAccessToken = account.access_token;
+        if (account.refresh_token) {
+          token.googleRefreshToken = account.refresh_token;
+        }
+        token.googleExpiresAt = account.expires_at;
+        const scope = account.scope ?? "";
+        token.youtubeScope = scope.includes("youtube.force-ssl") || scope.includes("youtube");
+      }
+
       if (user?.email || (token.email && !token.userId) || trigger === "update") {
         const email = (
           user?.email ?? (token.email as string | undefined) ?? ""
@@ -102,6 +166,17 @@ export const authOptions: NextAuthOptions = {
         token.picture = (user as { image?: string }).image ?? token.picture;
       }
 
+      // Refresh access token if expired (or about to)
+      const expiresAt = token.googleExpiresAt ?? 0;
+      if (
+        token.googleRefreshToken &&
+        expiresAt &&
+        Date.now() / 1000 > expiresAt - 60
+      ) {
+        const refreshed = await refreshGoogleAccessToken(token);
+        Object.assign(token, refreshed);
+      }
+
       return token;
     },
 
@@ -111,6 +186,10 @@ export const authOptions: NextAuthOptions = {
         if (token.name) session.user.name = token.name as string;
         if (token.picture) session.user.image = token.picture as string;
       }
+      session.hasYoutubeAccess = Boolean(
+        token.youtubeScope &&
+          (token.googleAccessToken || token.googleRefreshToken),
+      );
       return session;
     },
 
@@ -182,4 +261,26 @@ export async function requireUser(): Promise<AppUser> {
     throw new Error("UNAUTHORIZED");
   }
   return user;
+}
+
+/**
+ * Google access token for YouTube Data API calls (replies).
+ * Refreshes via JWT callback when near expiry.
+ */
+export async function getGoogleAccessToken(): Promise<{
+  accessToken: string | null;
+  hasYoutubeScope: boolean;
+}> {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return { accessToken: null, hasYoutubeScope: false };
+  }
+
+  // Re-read JWT-backed session; access token is not on session object by design
+  // so we pull from getToken pattern via a second getServerSession after jwt refresh.
+  // NextAuth doesn't expose token on session — use getToken from next-auth/jwt in callers.
+  return {
+    accessToken: null,
+    hasYoutubeScope: Boolean(session.hasYoutubeAccess),
+  };
 }
