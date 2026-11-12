@@ -3,6 +3,7 @@ import { generateCSV } from "@/lib/utils";
 import { uploadToSupabase } from "@/lib/supabase-bucket";
 import { db } from "@/lib/db";
 import { $chats, $comments } from "@/lib/db/schema";
+import { bulkInsert } from "@/lib/db/bulk-insert";
 import {
   assertQuotaAvailable,
   classifyYoutubeError,
@@ -60,7 +61,10 @@ export type FetchCommentsResult = {
 export async function fetchAndStoreYoutubeComments(params: {
   rawVideoInput: string;
   userId: string;
-  onProgress?: (info: { pages: number; comments: number }) => Promise<void> | void;
+  onProgress?: (info: {
+    pages: number;
+    comments: number;
+  }) => Promise<void> | void;
 }): Promise<FetchCommentsResult> {
   const { rawVideoInput, userId, onProgress } = params;
 
@@ -75,7 +79,6 @@ export async function fetchAndStoreYoutubeComments(params: {
     throw new Error("YouTube API key is not configured");
   }
 
-  // Reserve budget for up to MAX_PAGES list calls
   await assertQuotaAvailable(MAX_PAGES * COMMENT_THREADS_LIST_COST);
 
   const youtube = google.youtube({
@@ -93,7 +96,6 @@ export async function fetchAndStoreYoutubeComments(params: {
 
   try {
     do {
-      // Per-request check so we stop early if budget is nearly gone
       await assertQuotaAvailable(COMMENT_THREADS_LIST_COST);
 
       const response = await youtube.commentThreads.list({
@@ -186,10 +188,8 @@ export async function fetchAndStoreYoutubeComments(params: {
     publishedAt: c.publishedAt,
   }));
 
-  const CHUNK = 100;
-  for (let i = 0; i < commentRows.length; i += CHUNK) {
-    await db.insert($comments).values(commentRows.slice(i, i + CHUNK));
-  }
+  // Multi-row INSERT (chunked). At ≤500 rows this is 1–2 round-trips.
+  await bulkInsert($comments, commentRows);
 
   return {
     chatId,
