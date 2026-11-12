@@ -1,46 +1,56 @@
-import Pagination from "@/components/pagination";
 import getAllChats from "./_actions/get-all-chats";
 import ChatItemsWrapper from "./_component/chat-item-wrapper";
-import { getUser } from "@/lib/lucia";
+import { getUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 type Props = {
-    searchParams: {
-        [key: string]: string | string[] | undefined;
-    };
+  searchParams: {
+    [key: string]: string | string[] | undefined;
+  };
 };
 
 const Chat = async ({ searchParams }: Props) => {
-    const user = await getUser();
-    const { page, per_page, sort } = searchParams ?? {};
+  const user = await getUser();
+  if (!user) return redirect("/auth");
 
-    const limit = typeof per_page === "string" ? parseInt(per_page) : 8;
-    const offset = typeof page === "string" ? (parseInt(page) - 1) * limit : 0;
+  const { page, per_page, sort } = searchParams ?? {};
 
-    const [chats, len] = await getAllChats({
-        offset,
-        limit,
-        sort,
-        userId: user?.id as string,
-    });
+  const limit = typeof per_page === "string" ? parseInt(per_page) : 8;
+  const offset = typeof page === "string" ? (parseInt(page) - 1) * limit : 0;
 
-    const pageCount = Math.ceil((len as number) / limit);
+  const [chats, len] = await getAllChats({
+    offset,
+    limit,
+    sort,
+    userId: user.id,
+  });
 
-    return (
-        <div className="flex h-[calc(100vh-70px)]">
-            <div className="min-w-[200px] w-[200px] border-r"></div>
-            <ChatItemsWrapper
-                chats={
-                    chats as {
-                        id: string;
-                        fileId: string;
-                        fileName: string;
-                        userId: string;
-                    }[]
-                }
-                pageCount={pageCount}
-            />
-        </div>
-    );
+  const pageCount = Math.ceil((len as number) / limit);
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+          Projects
+        </h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Video analyses you've run — open one to chat, triage, or draft
+          replies.
+        </p>
+      </div>
+      <ChatItemsWrapper
+        chats={
+          chats as {
+            id: string;
+            fileId: string;
+            fileName: string;
+            userId: string;
+          }[]
+        }
+        pageCount={pageCount}
+      />
+    </div>
+  );
 };
 
 export default Chat;
