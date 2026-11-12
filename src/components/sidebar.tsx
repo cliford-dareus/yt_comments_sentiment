@@ -3,25 +3,15 @@
 import Link from "next/link";
 import { PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  SidebarProvider,
-  useSidebar,
-} from "@/components/provider/sidebar-provider";
+import { useSidebar } from "@/components/provider/sidebar-provider";
 import { BRAND } from "@/lib/brand";
 
 type Props = {
   children: React.ReactNode;
 };
 
+/** Expects SidebarProvider from AppShell (or parent). */
 const Sidebar = ({ children }: Props) => {
-  return (
-    <SidebarProvider>
-      <SidebarContent>{children}</SidebarContent>
-    </SidebarProvider>
-  );
-};
-
-const SidebarContent = ({ children }: Props) => {
   const { expanded, toggle } = useSidebar();
 
   return (
@@ -40,7 +30,7 @@ const SidebarContent = ({ children }: Props) => {
         <Link
           href="/dashboard"
           className={cn(
-            "flex items-center gap-2.5 min-w-0",
+            "flex min-w-0 items-center gap-2.5",
             !expanded && "justify-center",
           )}
         >
