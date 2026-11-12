@@ -27,20 +27,30 @@ export const authOptions: NextAuthOptions = {
     error: "/auth",
   },
   callbacks: {
+    /**
+     * Returning false → NextAuth redirects to /auth?error=AccessDenied.
+     * Only reject when we truly cannot create/load the user.
+     */
     async signIn({ user, profile }) {
-      if (!user.email) return false;
+      const email = user.email?.trim().toLowerCase();
+      if (!email) {
+        console.error(
+          "signIn rejected: Google account has no email on the profile",
+        );
+        return false;
+      }
 
       try {
         const existing = await db
           .select()
           .from($user)
-          .where(eq($user.email, user.email))
+          .where(eq($user.email, email))
           .limit(1);
 
         if (existing.length === 0) {
           await db.insert($user).values({
             id: crypto.randomUUID(),
-            email: user.email,
+            email,
             fullName: user.name ?? profile?.name ?? "",
             picture: user.image ?? "",
           });
@@ -51,12 +61,13 @@ export const authOptions: NextAuthOptions = {
               fullName: user.name ?? existing[0].fullName,
               picture: user.image ?? existing[0].picture,
             })
-            .where(eq($user.email, user.email));
+            .where(eq($user.email, email));
         }
 
         return true;
       } catch (error) {
-        console.error("signIn callback error:", error);
+        // Most common production cause of AccessDenied: DATABASE_URL / schema
+        console.error("signIn callback DB error (causes AccessDenied):", error);
         return false;
       }
     },
@@ -64,16 +75,24 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger }) {
       // First sign-in or missing userId — resolve from DB
       if (user?.email || (token.email && !token.userId) || trigger === "update") {
-        const email = user?.email ?? (token.email as string | undefined);
+        const email = (
+          user?.email ?? (token.email as string | undefined) ?? ""
+        )
+          .trim()
+          .toLowerCase();
         if (email) {
-          const rows = await db
-            .select({ id: $user.id })
-            .from($user)
-            .where(eq($user.email, email))
-            .limit(1);
+          try {
+            const rows = await db
+              .select({ id: $user.id })
+              .from($user)
+              .where(eq($user.email, email))
+              .limit(1);
 
-          if (rows[0]) {
-            token.userId = rows[0].id;
+            if (rows[0]) {
+              token.userId = rows[0].id;
+            }
+          } catch (err) {
+            console.error("jwt callback DB error:", err);
           }
         }
       }
@@ -96,9 +115,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     async redirect({ url, baseUrl }) {
-      // Relative callback
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Same origin
       try {
         if (new URL(url).origin === baseUrl) return url;
       } catch {
@@ -129,31 +146,36 @@ export async function getUser(): Promise<AppUser | null> {
   }
 
   const userId = session.user.id;
+  const email = session.user.email.trim().toLowerCase();
 
-  const rows = await db
-    .select({
-      id: $user.id,
-      email: $user.email,
-      fullName: $user.fullName,
-      picture: $user.picture,
-    })
-    .from($user)
-    .where(userId ? eq($user.id, userId) : eq($user.email, session.user.email))
-    .limit(1);
+  try {
+    const rows = await db
+      .select({
+        id: $user.id,
+        email: $user.email,
+        fullName: $user.fullName,
+        picture: $user.picture,
+      })
+      .from($user)
+      .where(userId ? eq($user.id, userId) : eq($user.email, email))
+      .limit(1);
 
-  if (rows[0]) {
-    return rows[0];
+    if (rows[0]) {
+      return rows[0];
+    }
+  } catch (err) {
+    console.error("getUser DB error:", err);
   }
 
   return {
     id: userId ?? "",
-    email: session.user.email,
+    email,
     fullName: session.user.name ?? "",
     picture: session.user.image ?? "",
   };
 }
 
-/** Throws redirect-friendly null; use when page already redirects on null. */
+/** Throws when page already redirects on null. */
 export async function requireUser(): Promise<AppUser> {
   const user = await getUser();
   if (!user?.id) {
