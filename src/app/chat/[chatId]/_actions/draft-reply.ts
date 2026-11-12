@@ -3,10 +3,8 @@
 import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { $chats, $comments, $sentiment } from "@/lib/db/schema";
+import { generateText, withRetry } from "@/lib/gemini";
 import { and, eq } from "drizzle-orm";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
 export type ReplyTone =
   | "friendly"
@@ -86,11 +84,6 @@ export async function draftReplyToComment({
     tone in TONE_GUIDANCE ? tone : "friendly";
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: { temperature: 0.85 },
-    });
-
     const prompt = `You write YouTube comment replies for the video creator.
 
 Tone: ${selectedTone}
@@ -113,8 +106,16 @@ Rules for each reply:
 - Variants must differ in wording/angle (not near-duplicates).
 - Hostile/troll → calm and brief. Question → helpful. Praise → specific thanks.`;
 
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text();
+    const raw = await withRetry(
+      () =>
+        generateText({
+          prompt,
+          temperature: 0.85,
+          json: true,
+          maxOutputTokens: 2048,
+        }),
+      { label: "draftReply", retries: 2 },
+    );
 
     let variants: string[] = [];
     try {
@@ -211,11 +212,6 @@ export async function draftCommunityPost({
     tone in TONE_GUIDANCE ? tone : "friendly";
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: { temperature: 0.7 },
-    });
-
     const prompt = `You write a pinned YouTube comment or community-post reply from the creator.
 
 Tone: ${selectedTone} — ${TONE_GUIDANCE[selectedTone]}
@@ -229,12 +225,19 @@ Write ONE short post (3–6 sentences) the creator can pin or post to the commun
 Acknowledge what viewers liked, address the main criticism constructively if any, and invite more feedback.
 No hashtag spam. Return ONLY the post text.`;
 
-    const result = await model.generateContent(prompt);
-    const post = result.response.text().trim();
+    const post = await withRetry(
+      () =>
+        generateText({
+          prompt,
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+        }),
+      { label: "draftCommunityPost", retries: 2 },
+    );
 
-    if (!post) return { error: "Empty community post draft" };
+    if (!post?.trim()) return { error: "Empty community post draft" };
 
-    return { post, tone: selectedTone };
+    return { post: post.trim(), tone: selectedTone };
   } catch (err) {
     console.error("draftCommunityPost error:", err);
     return { error: "Failed to draft community post" };
