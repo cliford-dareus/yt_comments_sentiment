@@ -9,11 +9,17 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
     };
+    /** True when JWT holds a usable Google access/refresh token with YouTube scope. */
+    hasYoutubeAccess?: boolean;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     userId?: string;
+    googleAccessToken?: string;
+    googleRefreshToken?: string;
+    googleExpiresAt?: number; // epoch seconds
+    youtubeScope?: boolean;
   }
 }
