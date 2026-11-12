@@ -1,55 +1,58 @@
-import { useParams, usePathname, useRouter } from "next/navigation";
-import React, {
+"use client";
+
+import {
   createContext,
-  useState,
   useContext,
-  ReactNode,
+  useState,
   useEffect,
+  type ReactNode,
 } from "react";
 
 type SidebarContextProps = {
   expanded: boolean;
-  active: string;
-  alert: boolean;
-  setAlert: React.Dispatch<React.SetStateAction<boolean>>;
-  setActive: React.Dispatch<React.SetStateAction<string>>;
   setExpanded: React.Dispatch<React.SetStateAction<boolean>>;
+  toggle: () => void;
 };
 
 const SidebarContext = createContext<SidebarContextProps | undefined>(
   undefined,
 );
 
-interface SidebarProviderProps {
-  children: ReactNode;
-}
+const STORAGE_KEY = "commentai.sidebar.expanded";
 
-export const SidebarProvider = ({ children }: SidebarProviderProps) => {
-  const pathname = usePathname();
-  const [expanded, setExpanded] = useState(false);
-  const [alert, setAlert] = useState(false);
-  const [active, setActive] = useState("dashboard");
+export function SidebarProvider({ children }: { children: ReactNode }) {
+  const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
-    setActive(pathname.slice(1));
-    if (pathname.slice(1) === "dashboard") {
-      setExpanded(true);
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored != null) setExpanded(stored === "1");
+    } catch {
+      // ignore
     }
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, expanded ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [expanded]);
+
+  const toggle = () => setExpanded((v) => !v);
 
   return (
-    <SidebarContext.Provider
-      value={{ expanded, setExpanded, active, setActive, alert, setAlert }}
-    >
+    <SidebarContext.Provider value={{ expanded, setExpanded, toggle }}>
       {children}
     </SidebarContext.Provider>
   );
-};
+}
 
-export const useSidebar = () => {
+export function useSidebar() {
   const context = useContext(SidebarContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useSidebar must be used within a SidebarProvider");
   }
   return context;
-};
+}
