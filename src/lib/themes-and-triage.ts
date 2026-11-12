@@ -3,6 +3,11 @@ import { $comments, $themeClusters } from "@/lib/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { generateText, withRetry } from "@/lib/gemini";
 import { THEME_CATALOG } from "@/lib/theme-catalog";
+import {
+  batchUpdateThemeKeys,
+  batchUpdateTriage,
+  type TriageBatchRow,
+} from "@/lib/db/batch-update-comments";
 
 export { THEME_CATALOG };
 
@@ -126,13 +131,10 @@ ${JSON.stringify(payload)}`,
       }));
     }
 
-    for (const a of assigned) {
-      if (!a.id) continue;
-      await db
-        .update($comments)
-        .set({ themeKey: a.theme })
-        .where(eq($comments.id, a.id));
-    }
+    const themeRows = assigned
+      .filter((a) => a.id)
+      .map((a) => ({ id: a.id, themeKey: a.theme }));
+    await batchUpdateThemeKeys(themeRows);
   }
 
   const themed = await db
@@ -221,6 +223,7 @@ export async function buildTriageInbox(chatId: string) {
     .from($comments)
     .where(eq($comments.chatId, chatId));
 
+  const updates: TriageBatchRow[] = [];
   let queued = 0;
 
   for (const r of rows) {
@@ -253,14 +256,12 @@ export async function buildTriageInbox(chatId: string) {
       reason = "Superfan / high-engagement praise — good to thank";
     } else {
       if (!r.triageStatus) {
-        await db
-          .update($comments)
-          .set({
-            triageStatus: null,
-            triagePriority: null,
-            triageReason: null,
-          })
-          .where(eq($comments.id, r.id));
+        updates.push({
+          id: r.id,
+          status: null,
+          priority: null,
+          reason: null,
+        });
       }
       continue;
     }
@@ -277,17 +278,16 @@ export async function buildTriageInbox(chatId: string) {
 
     const status = hasDraft ? ("drafted" as const) : ("open" as const);
 
-    await db
-      .update($comments)
-      .set({
-        triageStatus: status,
-        triagePriority: Math.min(100, priority),
-        triageReason: reason,
-      })
-      .where(eq($comments.id, r.id));
-
+    updates.push({
+      id: r.id,
+      status,
+      priority: Math.min(100, priority),
+      reason,
+    });
     queued++;
   }
+
+  await batchUpdateTriage(updates);
 
   return { queued };
 }
