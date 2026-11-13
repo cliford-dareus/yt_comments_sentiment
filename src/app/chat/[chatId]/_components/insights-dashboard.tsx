@@ -5,6 +5,7 @@ import { draftCommunityPost } from "../_actions/draft-reply";
 import { Button } from "@/components/ui/button";
 import type { HealthScoreResult } from "@/lib/health-score";
 import BenchmarkPanel from "./benchmark-panel";
+import GrowthCoachPanel from "./growth-coach-panel";
 import ThemeClustersPanel, {
   type ThemeClusterRow,
 } from "./theme-clusters-panel";
@@ -296,6 +297,8 @@ const InsightsDashboard = ({
             ))}
           </div>
         )}
+
+        <GrowthCoachPanel chatId={chatId} />
 
         <ThemeClustersPanel chatId={chatId} clusters={themeClusters} />
 
